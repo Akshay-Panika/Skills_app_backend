@@ -1,0 +1,1 @@
+﻿web: gunicorn skills_app.wsgi
