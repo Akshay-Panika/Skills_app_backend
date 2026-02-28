@@ -5,12 +5,12 @@ from user_auth.models import UserAuth
 from .models import UserProfile
 from .serializers import UserProfileSerializer
 
-class UserProfileCreateView(APIView):
+class UserProfileCreateByPhoneView(APIView):
 
-    def post(self, request, pk):
+    def post(self, request, phone):
 
-        # 🔎 user check by id
-        user = UserAuth.objects.filter(id=pk).first()
+        # 🔎 user check by phone
+        user = UserAuth.objects.filter(user_phone=phone).first()
         if not user:
             return Response(
                 {"error": "User not found"},
@@ -39,14 +39,22 @@ class UserProfileCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
-    
-class UserProfileByIdView(APIView):
 
-    def get(self, request, pk):
-        profile = UserProfile.objects.filter(id=pk).first()
+class UserProfileByPhoneView(APIView):
 
+    def get(self, request, phone):
+
+        # 🔎 user find by phone
+        user = UserAuth.objects.filter(user_phone=phone).first()
+        if not user:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 🔎 profile check
+        profile = getattr(user, "profile", None)
         if not profile:
             return Response(
                 {"error": "Profile not found"},
