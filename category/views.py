@@ -23,11 +23,17 @@ class CategoryCRUDView(APIView):
 
     # 🔹 POST
     def post(self, request):
-        serializer = CategorySerializer(data=request.data, context={"request": request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
+        # DRF automatically merges request.data + request.FILES
+        serializer = CategorySerializer(
+            data=request.data,
+            context={"request": request}
+        )
+        
+        # Raise exception if invalid (for debugging)
+        serializer.is_valid(raise_exception=True)
+        
+        serializer.save()
+        return Response(serializer.data, status=201)
 
     # 🔹 PUT / PATCH
     def put(self, request, pk):
