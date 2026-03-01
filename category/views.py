@@ -14,11 +14,19 @@ class CategoryCRUDView(APIView):
             if not category:
                 return Response({"error": "Category not found"}, status=404)
 
-            serializer = CategorySerializer(category)
+            serializer = CategorySerializer(
+                category,
+                context={"request": request}
+            )
             return Response(serializer.data)
 
         categories = Category.objects.all().order_by("-id")
-        serializer = CategorySerializer(categories, many=True)
+
+        serializer = CategorySerializer(
+            categories,
+            many=True,
+            context={"request": request}
+        )
 
         return Response({
             "count": categories.count(),
@@ -27,7 +35,10 @@ class CategoryCRUDView(APIView):
 
     # 🔹 POST (create)
     def post(self, request):
-        serializer = CategorySerializer(data=request.data)
+        serializer = CategorySerializer(
+            data=request.data,
+            context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=201)
@@ -39,7 +50,12 @@ class CategoryCRUDView(APIView):
         if not category:
             return Response({"error": "Category not found"}, status=404)
 
-        serializer = CategorySerializer(category, data=request.data, partial=True)
+        serializer = CategorySerializer(
+            category,
+            data=request.data,
+            partial=True,
+            context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
