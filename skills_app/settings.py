@@ -5,7 +5,7 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(tyxtnr+gt+(mwa2fjw&5u(r^7rceih-if)r@z7&m-3dmj+d%x'
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -77,26 +77,15 @@ if os.environ.get("DATABASE_URL"):
 else:
     # 👉 Local PostgreSQL database
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": "skills_app_db",
-            "USER": "postgres",
-            "PASSWORD": "postgres123",
-            "HOST": "localhost",
-            "PORT": "5432",
-        }
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'skills_app_db',
-#         'USER': 'postgres',
-#         'PASSWORD': 'postgres123',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
-#     }
-# }
+}
 
 
 # Password validation
