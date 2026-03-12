@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/", include("user_profile.urls")),
     path("api/", include("category.urls")),
     path("api/", include("subcategory.urls")),
+    path("api/", include("service.urls")),
 ]
 
 # Serve media files on production for testing only
