@@ -4,6 +4,7 @@ from rest_framework import status
 from .models import UserAuth
 from .serializers import UserAuthSerializer, OTPVerifySerializer
 from .twilio_client import send_otp
+from user_profile.models import UserProfile
 
 # 1️⃣ Send OTP to user
 class SendOTPView(APIView):
@@ -36,6 +37,14 @@ class VerifyOTPView(APIView):
                 user.is_verified = True
                 user.otp = ""  # clear OTP after verification
                 user.save()
+
+                UserProfile.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        "user_phone": user.user_phone
+                    }
+                )
+
                 user_serializer = UserAuthSerializer(user)
                 return Response({"message": "Phone verified", "data": user_serializer.data}, status=status.HTTP_200_OK)
             else:

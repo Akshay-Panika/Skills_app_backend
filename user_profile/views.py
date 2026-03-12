@@ -1,65 +1,39 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from user_auth.models import UserAuth
 from .models import UserProfile
 from .serializers import UserProfileSerializer
 
-class UserProfileCreateByPhoneView(APIView):
 
-    def post(self, request, phone):
+class ProfileAPIView(APIView):
 
-        # 🔎 user check by phone
-        user = UserAuth.objects.filter(user_phone=phone).first()
-        if not user:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+    # ✅ Get all profiles + count
+    def get(self, request):
+        profiles = UserProfile.objects.all()
+        serializer = UserProfileSerializer(profiles, many=True)
 
-        # 👉 existing profile check
-        profile = getattr(user, "profile", None)
+        return Response({
+            "count": profiles.count(),
+            "profiles": serializer.data
+        })
 
-        # 👉 request data copy
-        data = request.data.copy()
 
-        # 🔥 phone always from DB (never update)
-        data["user_phone"] = user.user_phone
+    # ✅ Update profile by ID
+    def put(self, request, id):
 
-        # 🟢 CREATE
+        profile = UserProfile.objects.filter(id=id).first()
+
         if not profile:
-            serializer = UserProfileSerializer(data=data)
+            return Response({"error": "Profile not found"}, status=404)
 
-        # 🟡 UPDATE
-        else:
-            serializer = UserProfileSerializer(profile, data=data, partial=True)
+        serializer = UserProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True
+        )
 
         if serializer.is_valid():
-            serializer.save(user=user)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer.save()
+            return Response(serializer.data)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserProfileByPhoneView(APIView):
-
-    def get(self, request, phone):
-
-        # 🔎 user find by phone
-        user = UserAuth.objects.filter(user_phone=phone).first()
-        if not user:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # 🔎 profile check
-        profile = getattr(user, "profile", None)
-        if not profile:
-            return Response(
-                {"error": "Profile not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = UserProfileSerializer(profile)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=400)
