@@ -10,14 +10,26 @@ from user_profile.models import UserProfile
 class SendOTPView(APIView):
     def post(self, request):
         phone = request.data.get("user_phone")
+
         if not phone:
             return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # phone normalize (convert to +91 format)
+        phone = phone.replace(" ", "")
+        if phone.startswith("0"):
+            phone = "+91" + phone[1:]
+        elif not phone.startswith("+91"):
+            phone = "+91" + phone
+
+        try:
+            user = UserAuth.objects.get(user_phone=phone)
+        except UserAuth.DoesNotExist:
+            user = UserAuth.objects.create(user_phone=phone)
+
         otp = send_otp(phone)
-        user, created = UserAuth.objects.get_or_create(user_phone=phone)
         user.otp = otp
         user.save()
-        
+
         return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
 
 # 2️⃣ Verify OTP
