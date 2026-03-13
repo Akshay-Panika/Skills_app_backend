@@ -7,8 +7,19 @@ from .serializers import UserProfileSerializer
 
 class ProfileAPIView(APIView):
 
-    # ✅ Get all profiles
-    def get(self, request):
+    # ✅ Get all profiles OR single profile
+    def get(self, request, user_id=None):
+
+        if user_id:
+            profile = UserProfile.objects.filter(user=user_id).first()
+
+            if not profile:
+                return Response({"error": "Profile not found"}, status=404)
+
+            serializer = UserProfileSerializer(profile)
+
+            return Response(serializer.data)
+
         profiles = UserProfile.objects.all()
         serializer = UserProfileSerializer(profiles, many=True)
 
@@ -16,6 +27,7 @@ class ProfileAPIView(APIView):
             "count": profiles.count(),
             "profiles": serializer.data
         })
+
 
     # ✅ Update profile by USER ID
     def put(self, request, user_id):
