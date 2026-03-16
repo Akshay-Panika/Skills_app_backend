@@ -14,8 +14,8 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-# DEBUG = os.getenv("DEBUG", "False") == "True"
+# DEBUG = False
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # ALLOWED_HOSTS = ["*"]
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "skills-app-service.onrender.com"]
