@@ -15,9 +15,10 @@ class CategorySerializer(serializers.ModelSerializer):
 
         if instance.category_image:
             url = instance.category_image.url
-            # If in local development and the URL is relative, make it absolute
-            if settings.DEBUG and not url.startswith("http"):
+            # Local files (MEDIA) → make absolute
+            if url.startswith("/media/") and request:
                 url = request.build_absolute_uri(url)
+            # Cloudinary URL → already absolute
             representation["category_image"] = url
         else:
             representation["category_image"] = None
