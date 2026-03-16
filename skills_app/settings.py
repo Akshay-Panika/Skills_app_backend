@@ -132,11 +132,5 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-# Media setup
 MEDIA_URL = "/media/"
-
-# ✅ Local or Render Persistent Disk
-if DEBUG:
-    MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Local
-else:
-    MEDIA_ROOT = "/mnt/media"  # Render Persistent Disk
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
