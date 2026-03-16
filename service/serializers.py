@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import Service
 
 class ServiceSerializer(serializers.ModelSerializer):
-    # use_url=True ensures DRF can use request to generate full URL
     service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
     service_amount = serializers.DecimalField(
         max_digits=10,
@@ -26,3 +25,8 @@ class ServiceSerializer(serializers.ModelSerializer):
         if not validated_data.get("service_status"):
             validated_data["service_amount"] = None
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if not validated_data.get("service_status"):
+            validated_data["service_amount"] = None
+        return super().update(instance, validated_data)
