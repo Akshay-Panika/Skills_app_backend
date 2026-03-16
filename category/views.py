@@ -4,52 +4,67 @@ from rest_framework import status
 from .models import Category
 from .serializers import CategorySerializer
 
+
 class CategoryCRUDView(APIView):
-    # 🔹 GET list or single
+
+    # GET list or single
     def get(self, request, pk=None):
         if pk:
             category = Category.objects.filter(id=pk).first()
             if not category:
                 return Response({"error": "Category not found"}, status=404)
+
             serializer = CategorySerializer(category, context={"request": request})
             return Response(serializer.data)
 
         categories = Category.objects.all().order_by("-id")
         serializer = CategorySerializer(categories, many=True, context={"request": request})
+
         return Response({
             "count": categories.count(),
             "data": serializer.data
         })
 
-    # 🔹 POST
+
+    # POST
     def post(self, request):
-        # DRF automatically merges request.data + request.FILES
         serializer = CategorySerializer(
             data=request.data,
             context={"request": request}
         )
-        
-        # Raise exception if invalid (for debugging)
-        serializer.is_valid(raise_exception=True)
-        
-        serializer.save()
-        return Response(serializer.data, status=201)
 
-    # 🔹 PUT / PATCH
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+
+        return Response(serializer.errors, status=400)
+
+
+    # PUT / PATCH
     def put(self, request, pk):
         category = Category.objects.filter(id=pk).first()
+
         if not category:
             return Response({"error": "Category not found"}, status=404)
 
-        serializer = CategorySerializer(category, data=request.data, partial=True, context={"request": request})
+        serializer = CategorySerializer(
+            category,
+            data=request.data,
+            partial=True,
+            context={"request": request}
+        )
+
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
+
         return Response(serializer.errors, status=400)
 
-    # 🔹 DELETE
+
+    # DELETE
     def delete(self, request, pk):
         category = Category.objects.filter(id=pk).first()
+
         if not category:
             return Response({"error": "Category not found"}, status=404)
 
