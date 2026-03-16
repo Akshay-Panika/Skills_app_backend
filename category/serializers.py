@@ -10,17 +10,5 @@ class CategorySerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        # Use Cloudinary URL directly
         representation["category_image"] = str(instance.category_image.url) if instance.category_image else None
         return representation   
-
-    # def to_representation(self, instance):
-    #     representation = super().to_representation(instance)
-    #     request = self.context.get("request")
-
-    #     if instance.category_image and request:
-    #         representation["category_image"] = request.build_absolute_uri(instance.category_image.url)
-    #     else:
-    #         representation["category_image"] = None
-
-    #     return representation
