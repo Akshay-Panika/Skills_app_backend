@@ -1,13 +1,18 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
+
 from .models import UserProfile
 from .serializers import UserProfileSerializer
 
 
 class ProfileAPIView(APIView):
 
-    # ✅ Get all profiles OR single profile
+    # ✅ Required for image upload
+    parser_classes = (MultiPartParser, FormParser)
+
+    # GET
     def get(self, request, user_id=None):
 
         if user_id:
@@ -17,7 +22,6 @@ class ProfileAPIView(APIView):
                 return Response({"error": "Profile not found"}, status=404)
 
             serializer = UserProfileSerializer(profile)
-
             return Response(serializer.data)
 
         profiles = UserProfile.objects.all()
@@ -29,7 +33,7 @@ class ProfileAPIView(APIView):
         })
 
 
-    # ✅ Update profile by USER ID
+    # PUT (Update profile)
     def put(self, request, user_id):
 
         profile = UserProfile.objects.filter(user=user_id).first()

@@ -1,5 +1,6 @@
 from django.db import models
 from user_auth.models import UserAuth
+from cloudinary.models import CloudinaryField
 
 
 class UserProfile(models.Model):
@@ -15,6 +16,8 @@ class UserProfile(models.Model):
     user_email = models.EmailField(blank=True, null=True)
     user_gender = models.CharField(max_length=10, blank=True, null=True)
     user_bio = models.TextField(blank=True, null=True)
+    user_image = CloudinaryField('image', folder='profile', blank=True, null=True)
+
 
     def __str__(self):
         return self.user_phone
