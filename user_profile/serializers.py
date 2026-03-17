@@ -18,4 +18,4 @@ class UserProfileSerializer(serializers.ModelSerializer):
             if instance.user_image else None
         )
 
-        return data   # ✅ comma हटाया
+        return data  

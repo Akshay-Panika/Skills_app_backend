@@ -32,3 +32,27 @@ class ServiceDetailView(APIView):
 
         serializer = ServiceSerializer(service, context={'request': request})
         return Response(serializer.data)
+    
+
+class ServiceListByUserView(APIView):
+    def get(self, request, user_id):
+        services = Service.objects.filter(user_id=user_id).order_by("-id")
+
+        if not services.exists():
+            return Response({
+                "count": 0,
+                "message": "No services found for this user",
+                "services": [],
+        
+            }, status=status.HTTP_200_OK)
+
+        serializer = ServiceSerializer(
+            services,
+            many=True,
+            context={'request': request}
+        )
+
+        return Response({
+            "count": services.count(),
+            "services": serializer.data
+        }, status=status.HTTP_200_OK)
