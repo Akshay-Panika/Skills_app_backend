@@ -12,7 +12,6 @@ class ServiceCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class ServiceListView(APIView):
     def get(self, request):
         services = Service.objects.all().order_by("-id")
@@ -21,7 +20,6 @@ class ServiceListView(APIView):
             "count": services.count(),
             "services": serializer.data
         })
-
 
 class ServiceDetailView(APIView):
     def get(self, request, pk):
@@ -32,7 +30,6 @@ class ServiceDetailView(APIView):
 
         serializer = ServiceSerializer(service, context={'request': request})
         return Response(serializer.data)
-    
 
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
@@ -43,16 +40,35 @@ class ServiceListByUserView(APIView):
                 "count": 0,
                 "message": "No services found for this user",
                 "services": [],
-        
             }, status=status.HTTP_200_OK)
 
-        serializer = ServiceSerializer(
-            services,
-            many=True,
-            context={'request': request}
-        )
-
+        serializer = ServiceSerializer(services, many=True, context={'request': request})
         return Response({
             "count": services.count(),
             "services": serializer.data
         }, status=status.HTTP_200_OK)
+
+# 🔹 New: Delete service
+
+class ServiceDeleteView(APIView):
+    """
+    Delete a service only if the user_id matches the owner.
+    URL: /service/user/<user_id>/delete/<pk>/
+    """
+
+    def delete(self, request, user_id, pk):
+        try:
+            service = Service.objects.get(id=pk)
+
+            # ✅ Check if service belongs to the given user_id
+            if service.user.id != user_id:
+                return Response(
+                    {"error": "You are not allowed to delete this service"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            service.delete()
+            return Response({"message": "Service deleted successfully"}, status=status.HTTP_200_OK)
+
+        except Service.DoesNotExist:
+            return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
