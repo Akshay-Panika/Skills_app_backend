@@ -9,10 +9,9 @@ from .serializers import UserProfileSerializer
 
 class ProfileAPIView(APIView):
 
-    # ✅ Required for image upload
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = [MultiPartParser, FormParser]   # ✅ VERY IMPORTANT
 
-    # GET
+    # ✅ Get
     def get(self, request, user_id=None):
 
         if user_id:
@@ -33,13 +32,15 @@ class ProfileAPIView(APIView):
         })
 
 
-    # PUT (Update profile)
+    # ✅ PUT (INSIDE CLASS)
     def put(self, request, user_id):
 
         profile = UserProfile.objects.filter(user=user_id).first()
 
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
+
+        print("FILES:", request.FILES)  # 🔍 debug
 
         serializer = UserProfileSerializer(
             profile,
