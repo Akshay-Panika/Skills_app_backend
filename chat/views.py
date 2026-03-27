@@ -1,10 +1,36 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Q
+from user_auth.models import UserAuth
+from service.models import Service
+
 
 from .models import ChatRoom, Message
 from .serializers import ChatRoomSerializer, MessageSerializer
 
+class CreateChatRoomView(APIView):
+    def post(self, request):
+        service_id = request.data.get("service_id")
+        customer_id = request.data.get("customer_id")
+        provider_id = request.data.get("provider_id")
+
+        try:
+            service = Service.objects.get(id=service_id)
+            customer = UserAuth.objects.get(id=customer_id)
+            provider = UserAuth.objects.get(id=provider_id)
+
+            chat_room, created = ChatRoom.objects.get_or_create(
+                service=service,
+                customer=customer,
+                provider=provider
+            )
+
+            return Response({
+                "chat_room_id": chat_room.id
+            })
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
 
 # ✅ Get messages (history)
 class ChatMessagesView(APIView):
