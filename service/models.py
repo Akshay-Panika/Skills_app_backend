@@ -20,7 +20,7 @@ class Service(models.Model):
     )
     service_name = models.CharField(max_length=255)
 
-    # ✅ CloudinaryField for image
+    #  CloudinaryField for image
     service_image = CloudinaryField(
         'image',
         folder='services',
@@ -29,6 +29,7 @@ class Service(models.Model):
     )
 
     service_status = models.BooleanField(default=True)
+    swipe_status = models.BooleanField(default=False)  # 🔹 New field
 
     # service_amount required only if service_status=True
     service_amount = models.DecimalField(
@@ -47,8 +48,9 @@ class Service(models.Model):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # 🔹 Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)  # Creation time
+    updated_at = models.DateTimeField(auto_now=True)      # Last updated time
 
     def __str__(self):
         return self.service_name
