@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/", include("subcategory.urls")),
     path("api/", include("service.urls")),
     path('api/', include('chat.urls')),
+    path('api/', include('favorite.urls')),
 ]
 
 if settings.DEBUG:
