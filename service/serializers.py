@@ -10,10 +10,17 @@ class ServiceSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     swipe_status = serializers.BooleanField(required=False)  # 🔹 New field
+    
+    is_favorite = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Service
         fields = "__all__"
+
+    def get_is_favorite(self, obj):
+        favorite_ids = self.context.get("favorite_ids", [])
+        return obj.id in favorite_ids    
 
     def validate(self, data):
         # ✅ service_amount required only if service_status=True

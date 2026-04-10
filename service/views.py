@@ -4,6 +4,7 @@ from rest_framework import status
 from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
+from favorite.models import Favorite
 
 # 🔹 Helper to get verified user
 def get_verified_user(user_id):
@@ -29,11 +30,33 @@ class ServiceCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 2️⃣ List all services
 class ServiceListView(APIView):
     def get(self, request):
         services = Service.objects.all().order_by("-id")
-        serializer = ServiceSerializer(services, many=True)
+
+        # 🔥 user optional (query param se)
+        user_id = request.GET.get("user")
+
+        favorite_ids = []
+
+        if user_id:
+            try:
+                user = UserAuth.objects.get(id=user_id)
+
+                # 🔥 only 1 query (optimized)
+                favorite_ids = list(
+                    Favorite.objects.filter(user=user)
+                    .values_list("service_id", flat=True)
+                )
+            except UserAuth.DoesNotExist:
+                pass
+
+        serializer = ServiceSerializer(
+            services,
+            many=True,
+            context={"favorite_ids": favorite_ids}  # 👈 pass
+        )
+
         return Response({
             "count": services.count(),
             "services": serializer.data
@@ -45,8 +68,22 @@ class ServiceDetailView(APIView):
         try:
             service = Service.objects.get(id=pk)
         except Service.DoesNotExist:
-            return Response({"error": "Service not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = ServiceSerializer(service)
+            return Response({"error": "Service not found"}, status=404)
+
+        user_id = request.GET.get("user")
+        favorite_ids = []
+
+        if user_id:
+            favorite_ids = list(
+                Favorite.objects.filter(user_id=user_id)
+                .values_list("service_id", flat=True)
+            )
+
+        serializer = ServiceSerializer(
+            service,
+            context={"favorite_ids": favorite_ids}
+        )
+
         return Response(serializer.data)
 
 # 4️⃣ List services by verified user
