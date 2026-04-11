@@ -87,18 +87,9 @@ class UpdateBookingStatusView(APIView):
             "data": BookingSerializer(booking).data
         })
     
-
 class DeleteBookingView(APIView):
 
-    def delete(self, request, pk):
-
-        user_id = request.data.get("user_id")
-
-        if not user_id:
-            return Response({
-                "success": False,
-                "error": "user_id is required"
-            }, status=400)
+    def delete(self, request, pk, user_id):
 
         try:
             booking = Booking.objects.get(id=pk)
@@ -108,8 +99,8 @@ class DeleteBookingView(APIView):
                 "error": "Booking not found"
             }, status=404)
 
-        # 🔥 Permission check (buyer or seller only)
-        if booking.buyer_id != int(user_id) and booking.seller_id != int(user_id):
+        # permission check
+        if booking.buyer_id != user_id and booking.seller_id != user_id:
             return Response({
                 "success": False,
                 "error": "You are not allowed to delete this booking"
@@ -120,9 +111,7 @@ class DeleteBookingView(APIView):
         return Response({
             "success": True,
             "message": "Booking deleted successfully"
-        }, status=200)
-    
-
+        })
 
 class CheckBookingView(APIView):
 
