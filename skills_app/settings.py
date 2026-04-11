@@ -52,7 +52,8 @@ INSTALLED_APPS = [
     'subcategory',
     'service',
     'chat',
-    'favorite'
+    'favorite',
+    'booking'
 ]
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
