@@ -1,9 +1,11 @@
 from rest_framework import serializers
 from .models import Booking
+from service.serializers import ServiceSerializer
+
 
 class BookingSerializer(serializers.ModelSerializer):
 
-    service_name = serializers.CharField(source="service.service_name", read_only=True)
+    service = ServiceSerializer(read_only=True)  
 
     class Meta:
         model = Booking
