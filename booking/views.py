@@ -21,6 +21,13 @@ class CreateBookingView(APIView):
         except:
             return Response({"success": False, "error": "Invalid buyer or service"}, status=400)
 
+        # 🔥 DUPLICATE CHECK (IMPORTANT)
+        if Booking.objects.filter(buyer=buyer, service=service).exists():
+            return Response({
+                "success": False,
+                "error": "You already booked this service"
+            }, status=400)
+
         booking = Booking.objects.create(
             buyer=buyer,
             seller=service.user,
@@ -34,7 +41,7 @@ class CreateBookingView(APIView):
             "message": "Booking created successfully",
             "data": BookingSerializer(booking).data
         }, status=201)
-    
+ 
 
 class UserBookingView(APIView):
     def get(self, request, user_id):
@@ -114,3 +121,38 @@ class DeleteBookingView(APIView):
             "success": True,
             "message": "Booking deleted successfully"
         }, status=200)
+    
+
+
+class CheckBookingView(APIView):
+
+    def get(self, request):
+
+        buyer_id = request.GET.get("buyer_id")
+        service_id = request.GET.get("service_id")
+
+        if not buyer_id or not service_id:
+            return Response({
+                "success": False,
+                "error": "buyer_id and service_id required"
+            }, status=400)
+
+        booking = Booking.objects.filter(
+            buyer_id=buyer_id,
+            service_id=service_id
+        ).order_by("-id").first()
+
+        if booking:
+            return Response({
+                "success": True,
+                "already_booked": True,
+                "booking_id": booking.id,
+                "status": booking.status,
+                "message": "Service already booked"
+            })
+
+        return Response({
+            "success": True,
+            "already_booked": False,
+            "message": "Service not booked yet"
+        })
