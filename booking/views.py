@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.db.models import Q
 
 from user_auth.models import UserAuth
 from service.models import Service
@@ -144,4 +145,28 @@ class CheckBookingView(APIView):
             "success": True,
             "already_booked": False,
             "message": "Service not booked yet"
+        })
+
+class ServiceBookingByUserView(APIView):
+    def get(self, request):
+
+        service_id = request.GET.get("service_id")
+        user_id = request.GET.get("user_id")
+
+        if not service_id or not user_id:
+            return Response({
+                "success": False,
+                "error": "service_id and user_id required"
+            }, status=400)
+
+        bookings = Booking.objects.filter(
+    service_id=service_id,
+).filter(
+    Q(buyer_id=user_id) | Q(seller_id=user_id)
+).select_related("service", "buyer", "seller").order_by("-id")
+
+        return Response({
+            "success": True,
+            "data": BookingSerializer(bookings, many=True).data,
+            "count": bookings.count()
         })

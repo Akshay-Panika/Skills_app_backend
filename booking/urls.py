@@ -4,7 +4,8 @@ from .views import (
     UserBookingView,
     UpdateBookingStatusView,
     DeleteBookingView,
-    CheckBookingView
+    CheckBookingView,
+    ServiceBookingByUserView
 )
 
 urlpatterns = [
@@ -13,5 +14,6 @@ urlpatterns = [
     path("booking/update/<int:pk>/", UpdateBookingStatusView.as_view()),
     path("booking/delete/<int:pk>/<int:user_id>/", DeleteBookingView.as_view()),
     path("booking/check/", CheckBookingView.as_view()),
+    path("booking/service-user/", ServiceBookingByUserView.as_view())
     
 ]
