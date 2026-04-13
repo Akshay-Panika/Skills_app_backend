@@ -20,6 +20,10 @@ def get_verified_user(user_id):
 class ServiceCreateView(APIView):
     def post(self, request):
         user_id = request.data.get("user")
+
+        if not user_id:
+             return Response({"error": "User id is required"}, status=400)
+
         user, error = get_verified_user(user_id)
         if error:
             return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
@@ -29,10 +33,11 @@ class ServiceCreateView(APIView):
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    
 class ServiceListView(APIView):
     def get(self, request):
-        services = Service.objects.all().order_by("-id")
+        services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
+        # services = Service.objects.all().order_by("-id")
 
         # 🔥 user optional (query param se)
         user_id = request.GET.get("user")
@@ -66,7 +71,8 @@ class ServiceListView(APIView):
 class ServiceDetailView(APIView):
     def get(self, request, pk):
         try:
-            service = Service.objects.get(id=pk)
+            service = Service.objects.select_related("user", "user__profile").get(id=pk)
+            # service = Service.objects.get(id=pk)
         except Service.DoesNotExist:
             return Response({"error": "Service not found"}, status=404)
 
@@ -93,7 +99,8 @@ class ServiceListByUserView(APIView):
         if error:
             return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
-        services = Service.objects.filter(user=user).order_by("-id")
+        services = Service.objects.select_related("user", "user__profile").filter(user=user).order_by("-id")
+        # services = Service.objects.filter(user=user).order_by("-id")
         serializer = ServiceSerializer(services, many=True)
         return Response({
             "count": services.count(),
@@ -108,7 +115,8 @@ class ServiceUpdateView(APIView):
             return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            service = Service.objects.get(id=pk, user=user)
+            service = Service.objects.select_related("user", "user__profile").get(id=pk, user=user)
+            # service = Service.objects.get(id=pk, user=user)
         except Service.DoesNotExist:
             return Response({"error": "Service not found or you don't own it"}, status=status.HTTP_404_NOT_FOUND)
 

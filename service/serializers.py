@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import Service
+from user_profile.serializers import UserProfileSerializer
+
 
 class ServiceSerializer(serializers.ModelSerializer):
     service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
@@ -9,14 +11,23 @@ class ServiceSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    swipe_status = serializers.BooleanField(required=False)  # 🔹 New field
+    swipe_status = serializers.BooleanField(required=False)  
+
+    user_profile = serializers.SerializerMethodField()
     
     is_favorite = serializers.SerializerMethodField()
 
 
     class Meta:
         model = Service
-        fields = "__all__"
+        exclude = ["user"]
+        # fields = "__all__"
+
+
+    def get_user_profile(self, obj):
+        if hasattr(obj.user, "profile"):
+            return UserProfileSerializer(obj.user.profile).data
+        return None    
 
     def get_is_favorite(self, obj):
         favorite_ids = self.context.get("favorite_ids", [])
