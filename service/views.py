@@ -98,7 +98,11 @@ class ServiceListView(APIView):
         for service in services:
             distance = None
 
-            if user_lat and user_lng and service.latitude and service.longitude:
+            if (
+                user_lat and user_lng and
+                service.latitude is not None and
+                service.longitude is not None
+            ):
                 distance = calculate_distance(
                     float(user_lat),
                     float(user_lng),
@@ -106,7 +110,6 @@ class ServiceListView(APIView):
                     service.longitude
                 )
 
-            # 🔥 ONLY 20 KM RANGE
             if distance is None or distance <= 20:
                 service.distance_km = distance
                 filtered_services.append(service)

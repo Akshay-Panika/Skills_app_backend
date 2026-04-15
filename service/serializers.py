@@ -5,7 +5,6 @@ from utils.location import calculate_distance
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    distance_km = serializers.SerializerMethodField()
     service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
     service_amount = serializers.DecimalField(
         max_digits=10,
@@ -38,6 +37,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             obj.latitude,
             obj.longitude
         )
+   
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
             return UserProfileSerializer(obj.user.profile).data
