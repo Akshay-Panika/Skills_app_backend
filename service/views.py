@@ -5,8 +5,9 @@ from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
+import math
 
-# 🔹 Helper to get verified user
+
 def get_verified_user(user_id):
     try:
         user = UserAuth.objects.get(id=user_id)
@@ -16,7 +17,6 @@ def get_verified_user(user_id):
     except UserAuth.DoesNotExist:
         return None, "User not found"
 
-# 1️⃣ Create Service
 class ServiceCreateView(APIView):
     def post(self, request):
         user_id = request.data.get("user")
@@ -33,41 +33,86 @@ class ServiceCreateView(APIView):
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 class ServiceListView(APIView):
     def get(self, request):
-        services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
-        # services = Service.objects.all().order_by("-id")
 
-        # 🔥 user optional (query param se)
+        # 🔹 Query Params
+        user_lat = request.GET.get("latitude")
+        user_lng = request.GET.get("longitude")
         user_id = request.GET.get("user")
 
+        services = Service.objects.select_related("user", "user__profile").all()
+
+        filtered_services = []
         favorite_ids = []
 
+        # 🔥 Favorite services
         if user_id:
             try:
-                user = UserAuth.objects.get(id=user_id)
-
-                # 🔥 only 1 query (optimized)
                 favorite_ids = list(
-                    Favorite.objects.filter(user=user)
+                    Favorite.objects.filter(user_id=user_id)
                     .values_list("service_id", flat=True)
                 )
-            except UserAuth.DoesNotExist:
+            except:
                 pass
 
+        # 🔥 LOCATION FILTER
+        if user_lat and user_lng:
+            try:
+                user_lat = float(user_lat)
+                user_lng = float(user_lng)
+            except:
+                return Response({"error": "Invalid latitude or longitude"}, status=400)
+
+            for service in services:
+                if service.latitude and service.longitude:
+
+                    # 🌍 Haversine Formula
+                    R = 6371
+                    lat1 = math.radians(user_lat)
+                    lon1 = math.radians(user_lng)
+                    lat2 = math.radians(service.latitude)
+                    lon2 = math.radians(service.longitude)
+
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+
+                    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+                    distance = R * c  # KM
+
+                    # ✅ 20 KM filter
+                    if distance <= 20:
+                        service.distance = distance  # temp attach
+                        filtered_services.append(service)
+
+        else:
+            filtered_services = list(services)
+
+        # 🔥 SORT (nearest first)
+        filtered_services = sorted(
+            filtered_services,
+            key=lambda x: getattr(x, "distance", 9999)
+        )
+
+        # 🔥 SERIALIZER
         serializer = ServiceSerializer(
-            services,
+            filtered_services,
             many=True,
-            context={"favorite_ids": favorite_ids}  # 👈 pass
+            context={
+                "user_lat": user_lat,
+                "user_lng": user_lng,
+                "favorite_ids": favorite_ids
+            }
         )
 
         return Response({
-            "count": services.count(),
+            "count": len(filtered_services),
             "services": serializer.data
         })
 
-# 3️⃣ Get service details by ID
 class ServiceDetailView(APIView):
     def get(self, request, pk):
         try:
@@ -92,7 +137,6 @@ class ServiceDetailView(APIView):
 
         return Response(serializer.data)
 
-# 4️⃣ List services by verified user
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
         user, error = get_verified_user(user_id)
@@ -107,7 +151,6 @@ class ServiceListByUserView(APIView):
             "services": serializer.data
         })
 
-# 5️⃣ Update service
 class ServiceUpdateView(APIView):
     def put(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
@@ -126,7 +169,6 @@ class ServiceUpdateView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 6️⃣ Delete service
 class ServiceDeleteView(APIView):
     def delete(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
