@@ -4,7 +4,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     if None in (lat1, lon1, lat2, lon2):
         return None
 
-    R = 6371  # Earth radius in KM
+    R = 6371  # KM
 
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
@@ -17,4 +17,4 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     )
 
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c  # KM
+    return R * c

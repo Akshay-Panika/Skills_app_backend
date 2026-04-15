@@ -7,7 +7,7 @@ from user_auth.models import UserAuth
 from favorite.models import Favorite
 from .utils.location import calculate_distance
 
-# 🔹 Helper to get verified user
+
 def get_verified_user(user_id):
     try:
         user = UserAuth.objects.get(id=user_id)
@@ -17,24 +17,28 @@ def get_verified_user(user_id):
     except UserAuth.DoesNotExist:
         return None, "User not found"
 
-# 1️⃣ Create Service
+
+# ✅ CREATE
 class ServiceCreateView(APIView):
     def post(self, request):
         user_id = request.data.get("user")
 
         if not user_id:
-             return Response({"error": "User id is required"}, status=400)
+            return Response({"error": "User id is required"}, status=400)
 
         user, error = get_verified_user(user_id)
         if error:
-            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": error}, status=400)
 
         serializer = ServiceSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(user=user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=201)
 
+        return Response(serializer.errors, status=400)
+
+
+# ✅ LIST
 class ServiceListView(APIView):
     def get(self, request):
         services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
@@ -46,7 +50,6 @@ class ServiceListView(APIView):
         favorite_ids = []
         distance_map = {}
 
-        # ✅ favorites
         if user_id:
             try:
                 user = UserAuth.objects.get(id=user_id)
@@ -57,7 +60,6 @@ class ServiceListView(APIView):
             except:
                 pass
 
-        # ✅ distance filtering
         if lat and lon:
             lat = float(lat)
             lon = float(lon)
@@ -67,7 +69,7 @@ class ServiceListView(APIView):
             for service in services:
                 dist = calculate_distance(lat, lon, service.latitude, service.longitude)
 
-                if dist is not None and dist <= 20:  # 🔥 20 KM filter
+                if dist is not None and dist <= 20:
                     meters = dist * 1000
 
                     if meters < 1000:
@@ -92,8 +94,9 @@ class ServiceListView(APIView):
             "count": len(services),
             "services": serializer.data
         })
-    
 
+
+# ✅ DETAIL (🔥 FIXED)
 class ServiceDetailView(APIView):
     def get(self, request, pk):
         try:
@@ -108,14 +111,12 @@ class ServiceDetailView(APIView):
         favorite_ids = []
         distance = None
 
-        # ✅ favorite logic
         if user_id:
             favorite_ids = list(
                 Favorite.objects.filter(user_id=user_id)
                 .values_list("service_id", flat=True)
             )
 
-        # ✅ distance logic
         if lat and lon:
             lat = float(lat)
             lon = float(lon)
@@ -126,7 +127,7 @@ class ServiceDetailView(APIView):
                 meters = dist * 1000
 
                 if meters < 1000:
-                    distance = f"{round(meters)} m"   # 🔥 0 m bhi show hoga
+                    distance = f"{round(meters)} m"
                 else:
                     distance = f"{round(dist, 2)} km"
 
@@ -139,53 +140,56 @@ class ServiceDetailView(APIView):
         )
 
         return Response(serializer.data)
-    
 
 
-# 4️⃣ List services by verified user
+# ✅ USER SERVICES (NO DISTANCE)
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
         user, error = get_verified_user(user_id)
         if error:
-            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": error}, status=400)
 
         services = Service.objects.select_related("user", "user__profile").filter(user=user).order_by("-id")
-        # services = Service.objects.filter(user=user).order_by("-id")
+
         serializer = ServiceSerializer(services, many=True)
+
         return Response({
             "count": services.count(),
             "services": serializer.data
         })
 
-# 5️⃣ Update service
+
+# ✅ UPDATE
 class ServiceUpdateView(APIView):
     def put(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
         if error:
-            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": error}, status=400)
 
         try:
-            service = Service.objects.select_related("user", "user__profile").get(id=pk, user=user)
-            # service = Service.objects.get(id=pk, user=user)
+            service = Service.objects.get(id=pk, user=user)
         except Service.DoesNotExist:
-            return Response({"error": "Service not found or you don't own it"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Not found"}, status=404)
 
         serializer = ServiceSerializer(service, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save(user=user)  # ensure ownership
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 6️⃣ Delete service
+        if serializer.is_valid():
+            serializer.save(user=user)
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+
+# ✅ DELETE
 class ServiceDeleteView(APIView):
     def delete(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
         if error:
-            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": error}, status=400)
 
         try:
             service = Service.objects.get(id=pk, user=user)
             service.delete()
-            return Response({"message": "Service deleted successfully"}, status=status.HTTP_200_OK)
+            return Response({"message": "Deleted"})
         except Service.DoesNotExist:
-            return Response({"error": "Service not found or you don't own it"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Not found"}, status=404)
