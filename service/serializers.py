@@ -4,6 +4,7 @@ from user_profile.serializers import UserProfileSerializer
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    distance = serializers.SerializerMethodField()
     service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
     service_amount = serializers.DecimalField(
         max_digits=10,
@@ -23,6 +24,9 @@ class ServiceSerializer(serializers.ModelSerializer):
         exclude = ["user"]
         # fields = "__all__"
 
+
+    def get_distance(self, obj):
+        return self.context.get("distance_map", {}).get(obj.id)
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):

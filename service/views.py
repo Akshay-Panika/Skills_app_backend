@@ -5,6 +5,7 @@ from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
+from .utils.location import calculate_distance
 
 # 🔹 Helper to get verified user
 def get_verified_user(user_id):
@@ -33,64 +34,113 @@ class ServiceCreateView(APIView):
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 class ServiceListView(APIView):
     def get(self, request):
         services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
-        # services = Service.objects.all().order_by("-id")
 
-        # 🔥 user optional (query param se)
         user_id = request.GET.get("user")
+        lat = request.GET.get("lat")
+        lon = request.GET.get("lon")
 
         favorite_ids = []
+        distance_map = {}
 
+        # ✅ favorites
         if user_id:
             try:
                 user = UserAuth.objects.get(id=user_id)
-
-                # 🔥 only 1 query (optimized)
                 favorite_ids = list(
                     Favorite.objects.filter(user=user)
                     .values_list("service_id", flat=True)
                 )
-            except UserAuth.DoesNotExist:
+            except:
                 pass
+
+        # ✅ distance filtering
+        if lat and lon:
+            lat = float(lat)
+            lon = float(lon)
+
+            filtered_services = []
+
+            for service in services:
+                dist = calculate_distance(lat, lon, service.latitude, service.longitude)
+
+                if dist is not None and dist <= 20:  # 🔥 20 KM filter
+                    meters = dist * 1000
+
+                    if meters < 1000:
+                        distance_map[service.id] = f"{round(meters)} m"
+                    else:
+                        distance_map[service.id] = f"{round(dist, 2)} km"
+
+                    filtered_services.append(service)
+
+            services = filtered_services
 
         serializer = ServiceSerializer(
             services,
             many=True,
-            context={"favorite_ids": favorite_ids}  # 👈 pass
+            context={
+                "favorite_ids": favorite_ids,
+                "distance_map": distance_map
+            }
         )
 
         return Response({
-            "count": services.count(),
+            "count": len(services),
             "services": serializer.data
         })
+    
 
-# 3️⃣ Get service details by ID
 class ServiceDetailView(APIView):
     def get(self, request, pk):
         try:
             service = Service.objects.select_related("user", "user__profile").get(id=pk)
-            # service = Service.objects.get(id=pk)
         except Service.DoesNotExist:
             return Response({"error": "Service not found"}, status=404)
 
         user_id = request.GET.get("user")
-        favorite_ids = []
+        lat = request.GET.get("lat")
+        lon = request.GET.get("lon")
 
+        favorite_ids = []
+        distance = None
+
+        # ✅ favorite logic
         if user_id:
             favorite_ids = list(
                 Favorite.objects.filter(user_id=user_id)
                 .values_list("service_id", flat=True)
             )
 
+        # ✅ distance logic
+        if lat and lon:
+            lat = float(lat)
+            lon = float(lon)
+
+            dist = calculate_distance(lat, lon, service.latitude, service.longitude)
+
+            if dist is not None:
+                meters = dist * 1000
+
+                if meters < 1000:
+                    distance = f"{round(meters)} m"   # 🔥 0 m bhi show hoga
+                else:
+                    distance = f"{round(dist, 2)} km"
+
         serializer = ServiceSerializer(
             service,
-            context={"favorite_ids": favorite_ids}
+            context={
+                "favorite_ids": favorite_ids,
+                "distance": distance
+            }
         )
 
         return Response(serializer.data)
+    
+
 
 # 4️⃣ List services by verified user
 class ServiceListByUserView(APIView):
