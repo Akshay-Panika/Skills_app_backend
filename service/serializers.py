@@ -4,6 +4,7 @@ from user_profile.serializers import UserProfileSerializer
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    service_image = serializers.SerializerMethodField()  # 🔥 FIX
     user_profile = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
@@ -11,6 +12,12 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         exclude = ["user"]
+
+    # 🔥 FIX IMAGE URL
+    def get_service_image(self, obj):
+        if obj.service_image:
+            return obj.service_image.url
+        return None
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
@@ -21,21 +28,16 @@ class ServiceSerializer(serializers.ModelSerializer):
         favorite_ids = self.context.get("favorite_ids", [])
         return obj.id in favorite_ids
 
-    # ✅ ONLY DISPLAY DISTANCE (NO CALCULATION HERE)
     def get_distance(self, obj):
         distance = getattr(obj, "distance", None)
 
         if distance is None:
             return None
 
+        if distance < 0.05:
+            return "Nearby"
+
         if distance < 1:
             return f"{round(distance * 1000)} m"
-        return f"{round(distance, 2)} km"
-    
 
-    # service_amount = serializers.DecimalField(
-    #     max_digits=10,
-    #     decimal_places=2,
-    #     required=False,
-    #     allow_null=True
-    # )    
+        return f"{round(distance, 2)} km"
