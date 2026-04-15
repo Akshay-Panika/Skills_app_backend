@@ -4,7 +4,7 @@ from user_profile.serializers import UserProfileSerializer
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    service_image = serializers.SerializerMethodField()  # 🔥 FIX
+    service_image = serializers.SerializerMethodField()
     user_profile = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
@@ -17,7 +17,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     def get_service_image(self, obj):
         if obj.service_image:
             return obj.service_image.url
-        return None
+        return ""
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):

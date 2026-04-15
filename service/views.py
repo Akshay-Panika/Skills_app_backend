@@ -80,9 +80,9 @@ class ServiceListView(APIView):
 
                     distance = R * c
 
-                    # ✅ 20 KM filter
+                    service.distance = distance
+
                     if distance <= 20:
-                        service.distance = distance
                         filtered_services.append(service)
 
         else:
