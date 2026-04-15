@@ -68,10 +68,10 @@ class ServiceListView(APIView):
         filtered_services = []
         use_location_filter = False
 
-        if latitude and longitude:
+        if latitude and longitude and latitude.strip() and longitude.strip():
             try:
-                user_lat = float(latitude)
-                user_lon = float(longitude)
+                user_lat = float(latitude.strip())
+                user_lon = float(longitude.strip())
                 use_location_filter = True
             except ValueError:
                 use_location_filter = False
