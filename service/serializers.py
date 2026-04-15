@@ -4,40 +4,51 @@ from user_profile.serializers import UserProfileSerializer
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    service_image = serializers.SerializerMethodField()
+    service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
+    service_amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True
+    )
+    swipe_status = serializers.BooleanField(required=False)  
+
     user_profile = serializers.SerializerMethodField()
+    
     is_favorite = serializers.SerializerMethodField()
-    distance = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Service
         exclude = ["user"]
+        # fields = "__all__"
 
-    # 🔥 FIX IMAGE URL
-    def get_service_image(self, obj):
-        if obj.service_image:
-            return obj.service_image.url
-        return ""
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
             return UserProfileSerializer(obj.user.profile).data
-        return None
+        return None    
 
     def get_is_favorite(self, obj):
         favorite_ids = self.context.get("favorite_ids", [])
-        return obj.id in favorite_ids
+        return obj.id in favorite_ids    
 
-    def get_distance(self, obj):
-        distance = getattr(obj, "distance", None)
+    def validate(self, data):
+        # ✅ service_amount required only if service_status=True
+        if data.get("service_status") and data.get("service_amount") is None:
+            raise serializers.ValidationError({
+                "service_amount": "This field is required when service_status is True."
+            })
+        return data
 
-        if distance is None:
-            return None
+    def create(self, validated_data):
+        # 🔹 Set service_amount=None if service_status=False
+        if not validated_data.get("service_status"):
+            validated_data["service_amount"] = None
+        return super().create(validated_data)
 
-        if distance < 0.05:
-            return "Nearby"
-
-        if distance < 1:
-            return f"{round(distance * 1000)} m"
-
-        return f"{round(distance, 2)} km"
+    def update(self, instance, validated_data):
+        # 🔹 Set service_amount=None if service_status=False
+        if not validated_data.get("service_status"):
+            validated_data["service_amount"] = None
+        return super().update(instance, validated_data)

@@ -5,9 +5,8 @@ from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
-import math
 
-
+# 🔹 Helper to get verified user
 def get_verified_user(user_id):
     try:
         user = UserAuth.objects.get(id=user_id)
@@ -17,101 +16,83 @@ def get_verified_user(user_id):
     except UserAuth.DoesNotExist:
         return None, "User not found"
 
+# 1️⃣ Create Service
 class ServiceCreateView(APIView):
     def post(self, request):
         user_id = request.data.get("user")
 
         if not user_id:
-            return Response({"error": "User id is required"}, status=400)
+             return Response({"error": "User id is required"}, status=400)
 
         user, error = get_verified_user(user_id)
         if error:
-            return Response({"error": error}, status=400)
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ServiceSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(user=user)
-            return Response(serializer.data, status=201)
-
-        return Response(serializer.errors, status=400)
-
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class ServiceListView(APIView):
     def get(self, request):
+        services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
+        # services = Service.objects.all().order_by("-id")
 
-        user_lat = request.GET.get("latitude")
-        user_lng = request.GET.get("longitude")
+        # 🔥 user optional (query param se)
         user_id = request.GET.get("user")
 
-        services = Service.objects.select_related("user", "user__profile").all()
-
-        filtered_services = []
         favorite_ids = []
 
-        # ✅ Favorite
+        if user_id:
+            try:
+                user = UserAuth.objects.get(id=user_id)
+
+                # 🔥 only 1 query (optimized)
+                favorite_ids = list(
+                    Favorite.objects.filter(user=user)
+                    .values_list("service_id", flat=True)
+                )
+            except UserAuth.DoesNotExist:
+                pass
+
+        serializer = ServiceSerializer(
+            services,
+            many=True,
+            context={"favorite_ids": favorite_ids}  # 👈 pass
+        )
+
+        return Response({
+            "count": services.count(),
+            "services": serializer.data
+        })
+
+# 3️⃣ Get service details by ID
+class ServiceDetailView(APIView):
+    def get(self, request, pk):
+        try:
+            service = Service.objects.select_related("user", "user__profile").get(id=pk)
+            # service = Service.objects.get(id=pk)
+        except Service.DoesNotExist:
+            return Response({"error": "Service not found"}, status=404)
+
+        user_id = request.GET.get("user")
+        favorite_ids = []
+
         if user_id:
             favorite_ids = list(
                 Favorite.objects.filter(user_id=user_id)
                 .values_list("service_id", flat=True)
             )
 
-        # ✅ Location filter
-        if user_lat and user_lng:
-            try:
-                user_lat = float(user_lat)
-                user_lng = float(user_lng)
-            except:
-                return Response({"error": "Invalid latitude/longitude"}, status=400)
-
-            for service in services:
-                if service.latitude and service.longitude:
-
-                    # 🌍 Distance Calculation
-                    R = 6371
-                    lat1 = math.radians(user_lat)
-                    lon1 = math.radians(user_lng)
-                    lat2 = math.radians(service.latitude)
-                    lon2 = math.radians(service.longitude)
-
-                    dlat = lat2 - lat1
-                    dlon = lon2 - lon1
-
-                    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-                    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-                    distance = R * c
-
-                    service.distance = distance
-
-                    if distance <= 20:
-                        filtered_services.append(service)
-
-        else:
-            filtered_services = list(services)
-
-        # ✅ Sort nearest
-        filtered_services.sort(key=lambda x: getattr(x, "distance", 9999))
-
         serializer = ServiceSerializer(
-            filtered_services,
-            many=True,
+            service,
             context={"favorite_ids": favorite_ids}
         )
 
-        return Response({
-            "count": len(filtered_services),
-            "services": serializer.data
-        })
-
-class ServiceDetailView(APIView):
-    def get(self, request, pk):
-        try:
-            service = Service.objects.select_related("user", "user__profile").get(id=pk)
-        except Service.DoesNotExist:
-            return Response({"error": "Service not found"}, status=404)
-
-        serializer = ServiceSerializer(service)
         return Response(serializer.data)
 
+# 4️⃣ List services by verified user
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
         user, error = get_verified_user(user_id)
@@ -126,6 +107,7 @@ class ServiceListByUserView(APIView):
             "services": serializer.data
         })
 
+# 5️⃣ Update service
 class ServiceUpdateView(APIView):
     def put(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
@@ -144,6 +126,7 @@ class ServiceUpdateView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# 6️⃣ Delete service
 class ServiceDeleteView(APIView):
     def delete(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
