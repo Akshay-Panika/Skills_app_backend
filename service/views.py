@@ -6,7 +6,6 @@ from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
 
-# 🔹 Helper to get verified user
 def get_verified_user(user_id):
     try:
         user = UserAuth.objects.get(id=user_id)
@@ -16,7 +15,6 @@ def get_verified_user(user_id):
     except UserAuth.DoesNotExist:
         return None, "User not found"
 
-# 1️⃣ Create Service
 class ServiceCreateView(APIView):
     def post(self, request):
         user_id = request.data.get("user")
@@ -92,7 +90,6 @@ class ServiceDetailView(APIView):
 
         return Response(serializer.data)
 
-# 4️⃣ List services by verified user
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
         user, error = get_verified_user(user_id)
@@ -107,7 +104,60 @@ class ServiceListByUserView(APIView):
             "services": serializer.data
         })
 
-# 5️⃣ Update service
+class ServiceListView(APIView):
+    def get(self, request):
+
+        user_lat = request.GET.get("lat")
+        user_lng = request.GET.get("lng")
+
+        services = Service.objects.select_related("user", "user__profile").all()
+
+        user_id = request.GET.get("user")
+        favorite_ids = []
+
+        if user_id:
+            try:
+                user = UserAuth.objects.get(id=user_id)
+                favorite_ids = list(
+                    Favorite.objects.filter(user=user)
+                    .values_list("service_id", flat=True)
+                )
+            except UserAuth.DoesNotExist:
+                pass
+
+        filtered_services = []
+
+        for service in services:
+            distance = None
+
+            if user_lat and user_lng and service.latitude and service.longitude:
+                distance = calculate_distance(
+                    float(user_lat),
+                    float(user_lng),
+                    service.latitude,
+                    service.longitude
+                )
+
+            # 🔥 ONLY 20 KM RANGE
+            if distance is None or distance <= 20:
+                service.distance_km = distance
+                filtered_services.append(service)
+
+        serializer = ServiceSerializer(
+            filtered_services,
+            many=True,
+            context={
+                "favorite_ids": favorite_ids,
+                "user_lat": user_lat,
+                "user_lng": user_lng
+            }
+        )
+
+        return Response({
+            "count": len(filtered_services),
+            "services": serializer.data
+        })
+
 class ServiceUpdateView(APIView):
     def put(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
@@ -126,7 +176,6 @@ class ServiceUpdateView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 6️⃣ Delete service
 class ServiceDeleteView(APIView):
     def delete(self, request, user_id, pk):
         user, error = get_verified_user(user_id)
