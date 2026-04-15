@@ -18,6 +18,21 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda/2)**2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
+def format_distance(user_lat, user_lon, service):
+    if service.latitude is None or service.longitude is None:
+        return None
+
+    distance_km = haversine_distance(
+        user_lat,
+        user_lon,
+        service.latitude,
+        service.longitude
+    )
+
+    if distance_km < 1:
+        return f"{int(distance_km * 1000)} m"
+    return f"{round(distance_km, 2)} km"
+
 def get_verified_user(user_id):
     try:
         user = UserAuth.objects.get(id=user_id)
@@ -112,16 +127,21 @@ class ServiceListView(APIView):
             "count": len(result),
             "services": result
         })
-    
+
 class ServiceDetailView(APIView):
+
     def get(self, request, pk):
         try:
-            service = Service.objects.select_related("user", "user__profile").get(id=pk)
-            # service = Service.objects.get(id=pk)
+            service = Service.objects.select_related(
+                "user", "user__profile"
+            ).get(id=pk)
         except Service.DoesNotExist:
             return Response({"error": "Service not found"}, status=404)
 
         user_id = request.GET.get("user")
+        latitude = request.GET.get("latitude")
+        longitude = request.GET.get("longitude")
+
         favorite_ids = []
 
         if user_id:
@@ -135,8 +155,28 @@ class ServiceDetailView(APIView):
             context={"favorite_ids": favorite_ids}
         )
 
-        return Response(serializer.data)
+        data = serializer.data
 
+        # ✅ CLEAN distance logic
+        data["distance"] = None
+
+        if latitude and longitude:
+            try:
+                user_lat = float(latitude)
+                user_lon = float(longitude)
+
+                data["distance"] = format_distance(
+                    user_lat,
+                    user_lon,
+                    service
+                )
+
+            except ValueError:
+                data["distance"] = None
+
+        return Response(data)
+    
+    
 class ServiceListByUserView(APIView):
     def get(self, request, user_id):
         user, error = get_verified_user(user_id)
