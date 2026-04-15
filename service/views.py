@@ -5,6 +5,7 @@ from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
+from utils.location import calculate_distance
 
 def get_verified_user(user_id):
     try:
@@ -16,6 +17,7 @@ def get_verified_user(user_id):
         return None, "User not found"
 
 class ServiceCreateView(APIView):
+
     def post(self, request):
         user_id = request.data.get("user")
 
@@ -32,40 +34,6 @@ class ServiceCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-class ServiceListView(APIView):
-    def get(self, request):
-        services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
-        # services = Service.objects.all().order_by("-id")
-
-        # 🔥 user optional (query param se)
-        user_id = request.GET.get("user")
-
-        favorite_ids = []
-
-        if user_id:
-            try:
-                user = UserAuth.objects.get(id=user_id)
-
-                # 🔥 only 1 query (optimized)
-                favorite_ids = list(
-                    Favorite.objects.filter(user=user)
-                    .values_list("service_id", flat=True)
-                )
-            except UserAuth.DoesNotExist:
-                pass
-
-        serializer = ServiceSerializer(
-            services,
-            many=True,
-            context={"favorite_ids": favorite_ids}  # 👈 pass
-        )
-
-        return Response({
-            "count": services.count(),
-            "services": serializer.data
-        })
-
-# 3️⃣ Get service details by ID
 class ServiceDetailView(APIView):
     def get(self, request, pk):
         try:
