@@ -5,7 +5,18 @@ from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
 from favorite.models import Favorite
-from utils.location import calculate_distance
+import math
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Returns distance in kilometers between two lat/lon points."""
+    R = 6371  # Earth radius in km
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(dphi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 def get_verified_user(user_id):
     try:
@@ -17,7 +28,6 @@ def get_verified_user(user_id):
         return None, "User not found"
 
 class ServiceCreateView(APIView):
-
     def post(self, request):
         user_id = request.data.get("user")
 
@@ -33,6 +43,75 @@ class ServiceCreateView(APIView):
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class ServiceListView(APIView):
+    def get(self, request):
+        services = Service.objects.select_related("user", "user__profile").all().order_by("-id")
+
+        user_id = request.GET.get("user")
+        latitude = request.GET.get("latitude")
+        longitude = request.GET.get("longitude")
+
+        favorite_ids = []
+
+        if user_id:
+            try:
+                user = UserAuth.objects.get(id=user_id)
+                favorite_ids = list(
+                    Favorite.objects.filter(user=user)
+                    .values_list("service_id", flat=True)
+                )
+            except UserAuth.DoesNotExist:
+                pass
+
+        # ✅ Location-based filtering (20km radius)
+        filtered_services = []
+        use_location_filter = False
+
+        if latitude and longitude:
+            try:
+                user_lat = float(latitude)
+                user_lon = float(longitude)
+                use_location_filter = True
+            except ValueError:
+                use_location_filter = False
+
+        for service in services:
+            if use_location_filter:
+                if service.latitude is None or service.longitude is None:
+                    continue  # skip services without location
+                distance_km = haversine_distance(user_lat, user_lon, service.latitude, service.longitude)
+                if distance_km <= 20:
+                    filtered_services.append((service, round(distance_km, 2)))
+            else:
+                filtered_services.append((service, None))
+
+        # Sort by distance (nearest first) if filtering
+        if use_location_filter:
+            filtered_services.sort(key=lambda x: x[1])
+
+        # Serialize
+        result = []
+        for service, distance in filtered_services:
+            serializer = ServiceSerializer(
+                service,
+                context={"favorite_ids": favorite_ids}
+            )
+            data = serializer.data
+            if distance is not None:
+                # ✅ Human-readable distance
+                if distance < 1:
+                    data["distance"] = f"{int(distance * 1000)} m"
+                else:
+                    data["distance"] = f"{distance} km"
+            else:
+                data["distance"] = None
+            result.append(data)
+
+        return Response({
+            "count": len(result),
+            "services": result
+        })
     
 class ServiceDetailView(APIView):
     def get(self, request, pk):
@@ -69,63 +148,6 @@ class ServiceListByUserView(APIView):
         serializer = ServiceSerializer(services, many=True)
         return Response({
             "count": services.count(),
-            "services": serializer.data
-        })
-
-class ServiceListView(APIView):
-    def get(self, request):
-
-        user_lat = request.GET.get("lat")
-        user_lng = request.GET.get("lng")
-
-        services = Service.objects.select_related("user", "user__profile").all()
-
-        user_id = request.GET.get("user")
-        favorite_ids = []
-
-        if user_id:
-            try:
-                user = UserAuth.objects.get(id=user_id)
-                favorite_ids = list(
-                    Favorite.objects.filter(user=user)
-                    .values_list("service_id", flat=True)
-                )
-            except UserAuth.DoesNotExist:
-                pass
-
-        filtered_services = []
-
-        for service in services:
-            distance = None
-
-            if (
-                user_lat and user_lng and
-                service.latitude is not None and
-                service.longitude is not None
-            ):
-                distance = calculate_distance(
-                    float(user_lat),
-                    float(user_lng),
-                    service.latitude,
-                    service.longitude
-                )
-
-            if distance is None or distance <= 20:
-                service.distance_km = distance
-                filtered_services.append(service)
-
-        serializer = ServiceSerializer(
-            filtered_services,
-            many=True,
-            context={
-                "favorite_ids": favorite_ids,
-                "user_lat": user_lat,
-                "user_lng": user_lng
-            }
-        )
-
-        return Response({
-            "count": len(filtered_services),
             "services": serializer.data
         })
 

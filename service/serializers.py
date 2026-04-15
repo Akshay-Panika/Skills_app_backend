@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Service
 from user_profile.serializers import UserProfileSerializer
-from utils.location import calculate_distance
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -22,22 +21,9 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         exclude = ["user"]
+        # fields = "__all__"
 
 
-    def get_distance_km(self, obj):
-        user_lat = self.context.get("user_lat")
-        user_lng = self.context.get("user_lng")
-
-        if not user_lat or not user_lng:
-            return None
-
-        return calculate_distance(
-            float(user_lat),
-            float(user_lng),
-            obj.latitude,
-            obj.longitude
-        )
-   
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
             return UserProfileSerializer(obj.user.profile).data
