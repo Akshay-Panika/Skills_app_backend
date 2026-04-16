@@ -6,7 +6,6 @@ from .views import (
     ServiceListByUserView,
     ServiceUpdateView,
     ServiceDeleteView,
-    ServiceActiveToggleView
 )
 
 urlpatterns = [
@@ -19,11 +18,6 @@ urlpatterns = [
 
     path("service/user/<int:user_id>/bulk-delete/", ServiceDeleteView.as_view(), name="delete-service"),
 
-    path(
-        "service/user/<int:user_id>/service-active-toggle/",
-        ServiceActiveToggleView.as_view(),
-        name="service-active-toggle"
-    ),
 ]
 
 # /api/service/list/
