@@ -206,3 +206,35 @@ class ServiceDeleteView(APIView):
             "message": "Deleted successfully",
             "deleted_count": deleted_count
         })
+    
+
+class ServiceActiveToggleView(APIView):
+    def post(self, request, user_id):
+        user, error = get_verified_user(user_id)
+        if error:
+            return Response({"error": error}, status=400)
+
+        ids = request.data.get("ids")
+
+        if isinstance(ids, int):
+            ids = [ids]
+
+        if isinstance(ids, str):
+            ids = [int(ids)]
+
+        if not isinstance(ids, list):
+            return Response({"error": "ids must be int or list"}, status=400)
+
+        services = Service.objects.filter(id__in=ids, user=user)
+
+        updated_count = 0
+
+        for service in services:
+            service.service_active = not service.service_active
+            service.save(update_fields=["service_active"])
+            updated_count += 1
+
+        return Response({
+            "message": "Service active status toggled successfully",
+            "updated_count": updated_count
+        })
