@@ -14,7 +14,7 @@ urlpatterns = [
     path("service/<int:pk>/", ServiceDetailView.as_view(), name="service-detail"),
     path("service/user/<int:user_id>/", ServiceListByUserView.as_view(), name="user-services"),
     path("service/user/<int:user_id>/update/<int:pk>/", ServiceUpdateView.as_view(), name="update-service"),
-    path("service/user/<int:user_id>/delete/", ServiceDeleteView.as_view(), name="delete-service"),]
+    path("service/user/<int:user_id>/bulk-delete/", ServiceDeleteView.as_view(), name="delete-service"),]
 
 # /api/service/list/
 # /api/service/list/?lat=18.51&lon=73.93

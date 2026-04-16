@@ -185,19 +185,30 @@ class ServiceDeleteView(APIView):
         if error:
             return Response({"error": error}, status=400)
 
-        # IDs can come from query param OR body
-        service_ids = request.data.get("ids") or request.query_params.get("ids")
+        # safer input handling
+        service_ids = request.data.get("ids")
 
-        # if single id passed
+        if not service_ids:
+            service_ids = request.query_params.get("ids")
+
         if not service_ids:
             return Response({"error": "ids is required"}, status=400)
 
-        # convert "1,2,3" -> [1,2,3]
+        # normalize input
         if isinstance(service_ids, str):
-            service_ids = [int(i) for i in service_ids.split(",") if i.strip()]
+            service_ids = service_ids.split(",")
+            service_ids = [int(i.strip()) for i in service_ids if i.strip()]
 
-        # delete only user's services
+        elif isinstance(service_ids, list):
+            service_ids = [int(i) for i in service_ids]
+
+        else:
+            return Response({"error": "Invalid ids format"}, status=400)
+
         services = Service.objects.filter(id__in=service_ids, user=user)
+
+        if not services.exists():
+            return Response({"error": "No services found"}, status=404)
 
         deleted_count = services.count()
         services.delete()
@@ -205,4 +216,4 @@ class ServiceDeleteView(APIView):
         return Response({
             "message": "Deleted successfully",
             "deleted_count": deleted_count
-        })
+        }, status=200)
