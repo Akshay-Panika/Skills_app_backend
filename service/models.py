@@ -29,7 +29,6 @@ class Service(models.Model):
     )
 
     service_status = models.BooleanField(default=True)
-    service_active = models.BooleanField(default=True)
     swipe_status = models.BooleanField(default=False)  # 🔹 New field
 
     # service_amount required only if service_status=True
