@@ -179,17 +179,30 @@ class ServiceUpdateView(APIView):
 
         return Response(serializer.errors, status=400)
 
-
-# ✅ DELETE
 class ServiceDeleteView(APIView):
-    def delete(self, request, user_id, pk):
+    def delete(self, request, user_id):
         user, error = get_verified_user(user_id)
         if error:
             return Response({"error": error}, status=400)
 
-        try:
-            service = Service.objects.get(id=pk, user=user)
-            service.delete()
-            return Response({"message": "Deleted"})
-        except Service.DoesNotExist:
-            return Response({"error": "Not found"}, status=404)
+        # IDs can come from query param OR body
+        service_ids = request.data.get("ids") or request.query_params.get("ids")
+
+        # if single id passed
+        if not service_ids:
+            return Response({"error": "ids is required"}, status=400)
+
+        # convert "1,2,3" -> [1,2,3]
+        if isinstance(service_ids, str):
+            service_ids = [int(i) for i in service_ids.split(",") if i.strip()]
+
+        # delete only user's services
+        services = Service.objects.filter(id__in=service_ids, user=user)
+
+        deleted_count = services.count()
+        services.delete()
+
+        return Response({
+            "message": "Deleted successfully",
+            "deleted_count": deleted_count
+        })
