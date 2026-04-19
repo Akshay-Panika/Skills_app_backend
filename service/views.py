@@ -243,7 +243,8 @@ class ServiceSearchView(APIView):
             services = services.filter(
                 Q(service_name__icontains=query) |
                 Q(category__category_name__icontains=query) |
-                Q(subcategory__subcategory_name__icontains=query)
+                Q(subcategory__subcategory_name__icontains=query) |
+                 Q(user__profile__user_name__icontains=query)
             )
 
         # ✅ Location wise filter (20 KM)
