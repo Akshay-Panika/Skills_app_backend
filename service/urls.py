@@ -6,9 +6,11 @@ from .views import (
     ServiceListByUserView,
     ServiceUpdateView,
     ServiceDeleteView,
+    ServiceSearchView
 )
 
 urlpatterns = [
+    path("service/search/",ServiceSearchView.as_view(),name="search-service"),
     path("service/create/", ServiceCreateView.as_view(), name="create-service"),
     path("service/list/", ServiceListView.as_view(), name="all-services"),
     path("service/<int:pk>/", ServiceDetailView.as_view(), name="service-detail"),

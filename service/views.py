@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.db.models import Q
 from .models import Service
 from .serializers import ServiceSerializer
 from user_auth.models import UserAuth
@@ -207,3 +208,85 @@ class ServiceDeleteView(APIView):
             "deleted_count": deleted_count
         })
     
+
+class ServiceSearchView(APIView):
+    def get(self, request):
+        user_id = request.GET.get("user")
+        lat = request.GET.get("lat")
+        lon = request.GET.get("lon")
+        query = request.GET.get("query", "").strip()
+
+        services = Service.objects.select_related(
+            "user",
+            "user__profile",
+            "category",
+            "subcategory"
+        ).all().order_by("-id")
+
+        favorite_ids = []
+        distance_map = {}
+
+        # ✅ Favorite check
+        if user_id:
+            try:
+                user = UserAuth.objects.get(id=user_id)
+
+                favorite_ids = list(
+                    Favorite.objects.filter(user=user)
+                    .values_list("service_id", flat=True)
+                )
+            except:
+                pass
+
+        # ✅ Search filter only if query exists
+        if query:
+            services = services.filter(
+                Q(service_name__icontains=query) |
+                Q(category__category_name__icontains=query) |
+                Q(subcategory__subcategory_name__icontains=query)
+            )
+
+        # ✅ Location wise filter (20 KM)
+        if lat and lon:
+            try:
+                lat = float(lat)
+                lon = float(lon)
+
+                filtered_services = []
+
+                for service in services:
+                    dist = calculate_distance(
+                        lat,
+                        lon,
+                        service.latitude,
+                        service.longitude
+                    )
+
+                    if dist is not None and dist <= 20:
+                        meters = dist * 1000
+
+                        if meters < 1000:
+                            distance_map[service.id] = f"{round(meters)} m"
+                        else:
+                            distance_map[service.id] = f"{round(dist, 2)} km"
+
+                        filtered_services.append(service)
+
+                services = filtered_services
+
+            except:
+                pass
+
+        serializer = ServiceSerializer(
+            services,
+            many=True,
+            context={
+                "favorite_ids": favorite_ids,
+                "distance_map": distance_map
+            }
+        )
+
+        return Response({
+            "count": len(services),
+            "services": serializer.data
+        })
