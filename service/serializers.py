@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import Service
 from user_profile.serializers import UserProfileSerializer
+from category.serializers import CategorySerializer
+from subcategory.serializers import SubCategorySerializer
 
 class ServiceSerializer(serializers.ModelSerializer):
     distance = serializers.SerializerMethodField()
@@ -10,6 +12,9 @@ class ServiceSerializer(serializers.ModelSerializer):
 
     user_profile = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
+
+    category = CategorySerializer(read_only=True)
+    subcategory = SubCategorySerializer(read_only=True)
 
     class Meta:
         model = Service
