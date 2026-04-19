@@ -14,16 +14,14 @@ class ServiceSerializer(serializers.ModelSerializer):
     is_favorite = serializers.SerializerMethodField()
 
     
-    category_id = serializers.PrimaryKeyRelatedField(
-    queryset=Category.objects.all(),
-    source='category',
-    write_only=True
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        write_only=True
     )
 
-    subcategory_id = serializers.PrimaryKeyRelatedField(
-    queryset=SubCategory.objects.all(),
-    source='subcategory',
-    write_only=True
+    subcategory = serializers.PrimaryKeyRelatedField(
+        queryset=SubCategory.objects.all(),
+        write_only=True
     )
 
     class Meta:
