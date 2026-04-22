@@ -34,6 +34,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost", "skills-app-service.onrender.com"]
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -51,9 +52,12 @@ INSTALLED_APPS = [
     'category',
     'subcategory',
     'service',
-    'chat',
     'favorite',
-    'booking'
+    'booking',
+
+    
+    'channels',
+    'chat',
 ]
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
@@ -86,7 +90,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'skills_app.wsgi.application'
+ASGI_APPLICATION = 'skills_app.asgi.application'
+# WSGI_APPLICATION = 'skills_app.wsgi.application'
 
 
 # Database
@@ -94,7 +99,7 @@ WSGI_APPLICATION = 'skills_app.wsgi.application'
 
 
 if os.environ.get("DATABASE_URL"):
-    # 👉 Render / Production database
+   
     DATABASES = {
         "default": dj_database_url.config(
             default=os.environ.get("DATABASE_URL"),
@@ -103,7 +108,7 @@ if os.environ.get("DATABASE_URL"):
         )
     }
 else:
-    # 👉 Local PostgreSQL database
+   
     DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -114,6 +119,23 @@ else:
         "PORT": os.getenv("DB_PORT"),
     }
 }
+
+
+if os.environ.get("REDIS_URL"):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [os.getenv("REDIS_URL")],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
 
 
 # Password validation

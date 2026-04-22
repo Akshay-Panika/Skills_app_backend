@@ -1,67 +1,185 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Q
 from user_auth.models import UserAuth
 from service.models import Service
-
-
 from .models import ChatRoom, Message
 from .serializers import ChatRoomSerializer, MessageSerializer
 
-class CreateChatRoomView(APIView):
-    def post(self, request):
-        service_id = request.data.get("service_id")
-        customer_id = request.data.get("customer_id")
-        provider_id = request.data.get("provider_id")
+
+def get_user(user_id):
+    try:
+        user = UserAuth.objects.get(id=user_id)
+        if not user.is_verified:
+            return None, "User is not verified"
+        return user, None
+    except UserAuth.DoesNotExist:
+        return None, "User not found"
+
+
+class RequestServiceChatView(APIView):
+    """Service ke liye chat room banao ya existing return karo"""
+
+    def post(self, request, service_id):
+        buyer_id = request.data.get("user_id")
+
+        if not buyer_id:
+            return Response({"error": "user_id is required"}, status=400)
+
+        buyer, error = get_user(buyer_id)
+        if error:
+            return Response({"error": error}, status=400)
 
         try:
             service = Service.objects.get(id=service_id)
-            customer = UserAuth.objects.get(id=customer_id)
-            provider = UserAuth.objects.get(id=provider_id)
+        except Service.DoesNotExist:
+            return Response({"error": "Service not found"}, status=404)
 
-            chat_room, created = ChatRoom.objects.get_or_create(
-                service=service,
-                customer=customer,
-                provider=provider
+        if service.user == buyer:
+            return Response(
+                {"error": "Apni service ke liye request nahi kar sakte"},
+                status=400
             )
 
-            return Response({
-                "chat_room_id": chat_room.id
-            })
+        chat_room, created = ChatRoom.objects.get_or_create(
+            service=service,
+            buyer=buyer,
+            defaults={"seller": service.user}
+        )
 
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
+        serializer = ChatRoomSerializer(
+            chat_room,
+            context={"user_id": int(buyer_id)}
+        )
 
-# ✅ Get messages (history)
-class ChatMessagesView(APIView):
-    def get(self, request, chat_room_id):
+        return Response({
+            "created": created,
+            "chat_room": serializer.data
+        }, status=201 if created else 200)
+
+
+class UserChatListView(APIView):
+    """User ki saari chat rooms - buyer + seller dono"""
+
+    def get(self, request, user_id):
+        user, error = get_user(user_id)
+        if error:
+            return Response({"error": error}, status=400)
+
+        room_ids = list(
+            ChatRoom.objects.filter(buyer=user).values_list('id', flat=True)
+        ) + list(
+            ChatRoom.objects.filter(seller=user).values_list('id', flat=True)
+        )
+
+        rooms = ChatRoom.objects.filter(
+            id__in=room_ids
+        ).select_related(
+            'service',
+            'buyer__profile',
+            'seller__profile'
+        ).order_by('-id')
+
+        serializer = ChatRoomSerializer(
+            rooms,
+            many=True,
+            context={"user_id": int(user_id)}
+        )
+
+        return Response({
+            "count": rooms.count(),
+            "chat_rooms": serializer.data
+        })
+
+
+class ChatRoomDetailView(APIView):
+    """Ek room ki detail"""
+
+    def get(self, request, room_id):
+        user_id = request.GET.get("user_id")
+
         try:
-            chat_room = ChatRoom.objects.get(id=chat_room_id)
+            room = ChatRoom.objects.select_related(
+                'service',
+                'buyer__profile',
+                'seller__profile'
+            ).get(id=room_id)
         except ChatRoom.DoesNotExist:
             return Response({"error": "Chat room not found"}, status=404)
 
-        messages = Message.objects.filter(
-            chat_room=chat_room
-        ).order_by("created_at")
+        if str(room.buyer_id) != str(user_id) and str(room.seller_id) != str(user_id):
+            return Response({"error": "Access denied"}, status=403)
+
+        serializer = ChatRoomSerializer(
+            room,
+            context={"user_id": int(user_id) if user_id else None}
+        )
+        return Response(serializer.data)
+
+
+class ChatMessageListView(APIView):
+    """Room ke saare messages fetch karo + read mark karo"""
+
+    def get(self, request, room_id):
+        user_id = request.GET.get("user_id")
+
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=400)
+
+        try:
+            room = ChatRoom.objects.get(id=room_id)
+        except ChatRoom.DoesNotExist:
+            return Response({"error": "Chat room not found"}, status=404)
+
+        if str(room.buyer_id) != str(user_id) and str(room.seller_id) != str(user_id):
+            return Response({"error": "Access denied"}, status=403)
+
+        # Doosre ki unread messages read mark karo
+        room.messages.filter(
+            is_read=False
+        ).exclude(sender_id=user_id).update(is_read=True)
+
+        messages = room.messages.select_related(
+            'sender__profile'
+        ).order_by('created_at')
 
         serializer = MessageSerializer(messages, many=True)
 
         return Response({
-            "chat_room_id": chat_room.id,
+            "count": messages.count(),
             "messages": serializer.data
         })
 
 
-# ✅ Inbox (chat list)
-class UserChatsView(APIView):
-    def get(self, request, user_id):
-        chats = ChatRoom.objects.filter(
-            Q(customer_id=user_id) | Q(provider_id=user_id)
-        ).order_by("-created_at")
+class SendMessageView(APIView):
+    """REST se message bhejo (WebSocket backup)"""
 
-        serializer = ChatRoomSerializer(chats, many=True)
+    def post(self, request, room_id):
+        user_id = request.data.get("user_id")
+        content = request.data.get("content", "").strip()
 
-        return Response({
-            "count": chats.count(),
-            "data": serializer.data
-        })
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=400)
+
+        if not content:
+            return Response({"error": "Message content is required"}, status=400)
+
+        user, error = get_user(user_id)
+        if error:
+            return Response({"error": error}, status=400)
+
+        try:
+            room = ChatRoom.objects.get(id=room_id)
+        except ChatRoom.DoesNotExist:
+            return Response({"error": "Chat room not found"}, status=404)
+
+        if room.buyer != user and room.seller != user:
+            return Response({"error": "Access denied"}, status=403)
+
+        message = Message.objects.create(
+            chat_room=room,
+            sender=user,
+            content=content
+        )
+
+        serializer = MessageSerializer(message)
+        return Response(serializer.data, status=201)
