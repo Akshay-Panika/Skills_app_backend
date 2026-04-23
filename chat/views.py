@@ -9,8 +9,6 @@ from service.models import Service
 from service.serializers import ServiceSerializer
 from user_auth.models import UserAuth
 
-
-# ================= CREATE ROOM =================
 class CreateChatRoomView(APIView):
     def post(self, request):
         service_id = request.data.get("service_id")
@@ -22,11 +20,15 @@ class CreateChatRoomView(APIView):
 
         try:
             service = Service.objects.select_related("user").get(id=service_id)
-            buyer = UserAuth.objects.get(id=buyer_id)
-        except:
-            return Response({"error": "Invalid data"}, status=404)
+        except Service.DoesNotExist:
+            return Response({"error": "Service not found"}, status=404)
 
-        seller = service.user
+        try:
+            buyer = UserAuth.objects.get(id=buyer_id)
+        except UserAuth.DoesNotExist:
+            return Response({"error": "Buyer not found"}, status=404)
+
+        seller = service.user  # ← verify this field name in Service model
 
         if seller.id == buyer.id:
             return Response({"error": "Seller cannot chat with self"}, status=400)
@@ -51,6 +53,47 @@ class CreateChatRoomView(APIView):
             "buyer_id": buyer.id,
             "created": created
         })
+# # ================= CREATE ROOM =================
+# class CreateChatRoomView(APIView):
+#     def post(self, request):
+#         service_id = request.data.get("service_id")
+#         buyer_id = request.data.get("buyer_id")
+#         first_message = request.data.get("message", "")
+
+#         if not service_id or not buyer_id:
+#             return Response({"error": "service_id and buyer_id required"}, status=400)
+
+#         try:
+#             service = Service.objects.select_related("user").get(id=service_id)
+#             buyer = UserAuth.objects.get(id=buyer_id)
+#         except:
+#             return Response({"error": "Invalid data"}, status=404)
+
+#         seller = service.user
+
+#         if seller.id == buyer.id:
+#             return Response({"error": "Seller cannot chat with self"}, status=400)
+
+#         room, created = ChatRoom.objects.get_or_create(
+#             service=service,
+#             seller=seller,
+#             buyer=buyer
+#         )
+
+#         if created and first_message.strip():
+#             ChatMessage.objects.create(
+#                 room=room,
+#                 sender=buyer,
+#                 message=first_message
+#             )
+
+#         return Response({
+#             "room_id": room.id,
+#             "service": ServiceSerializer(service).data,
+#             "seller_id": seller.id,
+#             "buyer_id": buyer.id,
+#             "created": created
+#         })
 
 
 # ================= ROOM LIST =================
