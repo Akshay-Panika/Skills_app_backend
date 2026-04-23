@@ -5,17 +5,14 @@ from service.models import Service
 
 class ChatRoom(models.Model):
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="chat_rooms")
-
     seller = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="seller_rooms")
     buyer = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="buyer_rooms")
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # online status
     seller_online = models.BooleanField(default=False)
     buyer_online = models.BooleanField(default=False)
 
-    # typing status
     seller_typing = models.BooleanField(default=False)
     buyer_typing = models.BooleanField(default=False)
 
@@ -23,7 +20,8 @@ class ChatRoom(models.Model):
         unique_together = ["service", "seller", "buyer"]
 
     def __str__(self):
-        return f"{self.buyer} -> {self.seller} ({self.service})"
+        return f"{self.id}"
+    
 
 
 class ChatMessage(models.Model):
