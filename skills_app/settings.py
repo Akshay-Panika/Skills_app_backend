@@ -35,6 +35,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost", "skills-app-service.onrender.com"]
 
 INSTALLED_APPS = [
     'daphne',
+    'cloudinary_storage',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,7 +45,6 @@ INSTALLED_APPS = [
 
     # Cloudinary
     'cloudinary',
-    'cloudinary_storage',
 
     'rest_framework',
     'user_auth',
