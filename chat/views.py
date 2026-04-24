@@ -117,3 +117,24 @@ class ChatHistoryView(APIView):
             "room_id": room.id,
             "messages": serializer.data
         })
+    
+
+class DeleteChatRoomView(APIView):
+    def delete(self, request, room_id):
+        try:
+            room = ChatRoom.objects.get(id=room_id)
+            room.delete()
+
+            return Response({
+                "message": "Chat room deleted successfully"
+            }, status=200)
+
+        except ChatRoom.DoesNotExist:
+            return Response({
+                "error": "Room not found"
+            }, status=404)
+
+        except Exception as e:
+            return Response({
+                "error": str(e)
+            }, status=500)
