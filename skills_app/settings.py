@@ -121,24 +121,25 @@ else:
 }
 
 
-if os.environ.get("REDIS_URL"):
+REDIS_URL = os.getenv("REDIS_URL")
+
+if REDIS_URL:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [os.getenv("REDIS_URL")],
+                "hosts": [REDIS_URL],
             },
         },
     }
 else:
+    # fallback for dev (IMPORTANT)
     CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL")],
-        },
-    },
-}
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
+
 
 
 # Password validation
