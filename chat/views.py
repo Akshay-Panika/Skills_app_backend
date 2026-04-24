@@ -9,6 +9,9 @@ from service.models import Service
 from service.serializers import ServiceSerializer
 from user_auth.models import UserAuth
 
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+
 class CreateChatRoomView(APIView):
     def post(self, request):
         service_id = request.data.get("service_id")
@@ -16,72 +19,47 @@ class CreateChatRoomView(APIView):
         first_message = request.data.get("message", "").strip()
 
         if not service_id or not buyer_id:
-            return Response({
-                "error": "service_id and buyer_id required"
-            }, status=400)
+            return Response({"error": "service_id and buyer_id required"}, status=400)
 
-        try:
-            service = Service.objects.select_related(
-                "user",
-                "user__profile",
-                "category",
-                "subcategory"
-            ).get(id=service_id)
-
-            buyer = UserAuth.objects.get(id=buyer_id)
-
-        except Service.DoesNotExist:
-            return Response({"error": "Service not found"}, status=404)
-
-        except UserAuth.DoesNotExist:
-            return Response({"error": "Buyer not found"}, status=404)
+        service = get_object_or_404(Service, id=service_id)
+        buyer = get_object_or_404(UserAuth, id=buyer_id)
 
         seller = service.user
 
         if seller.id == buyer.id:
             return Response({"error": "Seller cannot chat with self"}, status=400)
 
-        # ==============================
-        # 🔥 TRANSACTION SAFE ROOM CREATE
-        # ==============================
-        with transaction.atomic():
+        try:
+            with transaction.atomic():
 
-            room, created = ChatRoom.objects.get_or_create(
-                service=service,
-                seller=seller,
-                buyer=buyer,
-                defaults={
-                    "is_booked": True   # 🔥 NEW FIELD
-                }
-            )
-
-            # 🔥 ensure booking always true
-            if not room.is_booked:
-                room.is_booked = True
-                room.save()
-
-            # 🔥 mark service booked
-            service.is_booked = True
-            service.save()
-
-            # message save
-            if first_message:
-                ChatMessage.objects.create(
-                    room=room,
-                    sender=buyer,
-                    message=first_message
+                # 1️⃣ Create or get room
+                room, created = ChatRoom.objects.get_or_create(
+                    service=service,
+                    seller=seller,
+                    buyer=buyer,
+                    defaults={"is_booked": True}
                 )
 
-        return Response({
-            "room_id": room.id,
-            "created": created,
-            "is_booked": room.is_booked,   # 🔥 NEW
-            "seller_id": seller.id,
-            "buyer_id": buyer.id,
-            "service": ServiceSerializer(service).data
-        })
-    
+                # 2️⃣ FORCE update service booking (IMPORTANT FIX)
+                Service.objects.filter(id=service.id).update(is_booked=True)
 
+                # 3️⃣ first message
+                if first_message:
+                    ChatMessage.objects.create(
+                        room=room,
+                        sender=buyer,
+                        message=first_message
+                    )
+
+            return Response({
+                "room_id": room.id,
+                "created": created,
+                "is_booked": True
+            })
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+        
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
         rooms = ChatRoom.objects.filter(
@@ -116,8 +94,6 @@ class ChatRoomListView(APIView):
             })
 
         return Response(data)
-    
-    
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
         try:
