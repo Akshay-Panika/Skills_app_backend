@@ -22,6 +22,8 @@ class ChatRoom(models.Model):
         related_name="buyer_rooms"
     )
 
+    is_booked = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

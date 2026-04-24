@@ -53,9 +53,7 @@ INSTALLED_APPS = [
     'subcategory',
     'service',
     'favorite',
-    'booking',
 
-    
     'channels',
     'chat',
 ]

@@ -48,6 +48,7 @@ class Service(models.Model):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
+    is_booked = models.BooleanField(default=False)
     # 🔹 Timestamps
     created_at = models.DateTimeField(auto_now_add=True)  # Creation time
     updated_at = models.DateTimeField(auto_now=True)      # Last updated time
