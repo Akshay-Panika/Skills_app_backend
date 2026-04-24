@@ -2,14 +2,11 @@ from rest_framework import serializers
 from .models import ChatRoom, ChatMessage
 
 
-class ChatRoomSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ChatRoom
-        fields = "__all__"
-
-
 class ChatMessageSerializer(serializers.ModelSerializer):
-    sender_name = serializers.CharField(source="sender.user_phone", read_only=True)
+    sender_phone = serializers.CharField(
+        source="sender.user_phone",
+        read_only=True
+    )
 
     class Meta:
         model = ChatMessage
@@ -17,9 +14,15 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             "id",
             "room",
             "sender",
-            "sender_name",
+            "sender_phone",
             "message",
             "is_seen",
             "is_delivered",
             "created_at"
         ]
+
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatRoom
+        fields = "__all__"

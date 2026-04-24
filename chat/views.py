@@ -1,27 +1,25 @@
-# chat/views.py
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.db.models import Q
 
 from .models import ChatRoom, ChatMessage
 from .serializers import ChatMessageSerializer
 from service.models import Service
 from service.serializers import ServiceSerializer
 from user_auth.models import UserAuth
-from django.db.models import Q
 
 
 class CreateChatRoomView(APIView):
     def post(self, request):
         service_id = request.data.get("service_id")
         buyer_id = request.data.get("buyer_id")
-        first_message = request.data.get("message", "")
+        first_message = request.data.get("message", "").strip()
 
         if not service_id or not buyer_id:
             return Response({
                 "error": "service_id and buyer_id required"
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=400)
 
         try:
             service = Service.objects.select_related(
@@ -36,70 +34,73 @@ class CreateChatRoomView(APIView):
         except Service.DoesNotExist:
             return Response({
                 "error": "Service not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+            }, status=404)
 
         except UserAuth.DoesNotExist:
             return Response({
                 "error": "Buyer not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+            }, status=404)
 
         seller = service.user
 
-        # seller khud se chat nahi kar sakta
         if seller.id == buyer.id:
             return Response({
                 "error": "Seller cannot chat with self"
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=400)
 
-        # room create ya existing room fetch
         room, created = ChatRoom.objects.get_or_create(
             service=service,
             seller=seller,
             buyer=buyer
         )
 
-        # agar naya room bana aur message bheja gaya ho
-        if created and first_message.strip():
+        # IMPORTANT FIX
+        # room old ho ya new
+        # message ALWAYS save hoga
+
+        if first_message:
             ChatMessage.objects.create(
                 room=room,
                 sender=buyer,
-                message=first_message.strip()
+                message=first_message
             )
-
-        # full service serializer
-        service_data = ServiceSerializer(service).data
 
         return Response({
             "room_id": room.id,
-            "service": service_data,   # 🔥 full service model parse
+            "created": created,
             "seller_id": seller.id,
             "buyer_id": buyer.id,
-            "created": created
-        }, status=status.HTTP_200_OK)
+            "service": ServiceSerializer(service).data
+        })
+
 
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
-
         rooms = ChatRoom.objects.filter(
             Q(buyer_id=user_id) |
             Q(seller_id=user_id)
-        ).select_related("service", "buyer", "seller")
+        ).select_related(
+            "service",
+            "buyer",
+            "seller"
+        ).order_by("-updated_at")
 
         data = []
 
         for room in rooms:
-            last_msg = ChatMessage.objects.filter(room=room).last()
+            last_message = room.messages.last()
 
             data.append({
                 "room_id": room.id,
                 "service": ServiceSerializer(room.service).data,
                 "buyer_id": room.buyer.id,
                 "seller_id": room.seller.id,
-                "last_message": last_msg.message if last_msg else None,
-                "updated_at": last_msg.created_at if last_msg else room.created_at
+                "last_message": last_message.message if last_message else "",
+                "updated_at": last_message.created_at if last_message else room.created_at
             })
 
         return Response(data)
+
 
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
@@ -109,7 +110,7 @@ class ChatHistoryView(APIView):
         except ChatRoom.DoesNotExist:
             return Response({
                 "error": "Room not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+            }, status=404)
 
         messages = ChatMessage.objects.filter(
             room=room
