@@ -2,7 +2,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
-
 from .models import ChatRoom, ChatMessage
 from .serializers import ChatMessageSerializer
 from service.models import Service
@@ -12,6 +11,7 @@ from user_auth.models import UserAuth
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
+
 class CreateChatRoomView(APIView):
     def post(self, request):
         service_id = request.data.get("service_id")
@@ -19,7 +19,10 @@ class CreateChatRoomView(APIView):
         first_message = request.data.get("message", "").strip()
 
         if not service_id or not buyer_id:
-            return Response({"error": "service_id and buyer_id required"}, status=400)
+            return Response(
+                {"error": "service_id and buyer_id required"},
+                status=400
+            )
 
         service = get_object_or_404(Service, id=service_id)
         buyer = get_object_or_404(UserAuth, id=buyer_id)
@@ -27,24 +30,26 @@ class CreateChatRoomView(APIView):
         seller = service.user
 
         if seller.id == buyer.id:
-            return Response({"error": "Seller cannot chat with self"}, status=400)
+            return Response(
+                {"error": "Seller cannot chat with self"},
+                status=400
+            )
 
         try:
             with transaction.atomic():
 
-                # 1️⃣ Create or get room
+                # 🔥 same buyer ke liye only one room
                 room, created = ChatRoom.objects.get_or_create(
                     service=service,
                     seller=seller,
                     buyer=buyer,
-                    defaults={"is_booked": True}
+                    defaults={
+                        "is_booked": True
+                    }
                 )
 
-                # 2️⃣ FORCE update service booking (IMPORTANT FIX)
-                Service.objects.filter(id=service.id).update(is_booked=True)
-
-                # 3️⃣ first message
-                if first_message:
+                # first message
+                if first_message and created:
                     ChatMessage.objects.create(
                         room=room,
                         sender=buyer,
@@ -54,12 +59,15 @@ class CreateChatRoomView(APIView):
             return Response({
                 "room_id": room.id,
                 "created": created,
-                "is_booked": True
+                "is_booked": room.is_booked
             })
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
-        
+            return Response({
+                "error": str(e)
+            }, status=500)
+
+
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
         rooms = ChatRoom.objects.filter(
@@ -119,22 +127,16 @@ class ChatHistoryView(APIView):
         })
     
 
+
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
         try:
-            room = ChatRoom.objects.select_related("service").get(id=room_id)
+            room = ChatRoom.objects.get(id=room_id)
 
-            # 🔥 service ko unbook karo
-            service = room.service
-            service.is_booked = False
-            service.save(update_fields=["is_booked"])
-
-            # 🔥 room delete
             room.delete()
 
             return Response({
-                "message": "Chat room deleted successfully",
-                "is_booked": False
+                "message": "Chat room deleted successfully"
             }, status=200)
 
         except ChatRoom.DoesNotExist:
@@ -146,3 +148,4 @@ class DeleteChatRoomView(APIView):
             return Response({
                 "error": str(e)
             }, status=500)
+        
