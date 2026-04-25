@@ -59,7 +59,8 @@ class ServiceSerializer(serializers.ModelSerializer):
             service=obj
         ).filter(
             Q(buyer_id=user_id) | Q(seller_id=user_id)
-        ).exists() 
+        ).exists()
+ 
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
