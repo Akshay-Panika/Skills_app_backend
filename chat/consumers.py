@@ -58,6 +58,7 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             return ChatRoom.objects.get(id=self.room_id)
         except ChatRoom.DoesNotExist:
             return None
+        
 
 
 class RoomListConsumer(AsyncWebsocketConsumer):

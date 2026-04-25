@@ -17,7 +17,6 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             "sender_phone",
             "message",
             "is_seen",
-            "is_delivered",
             "created_at"
         ]
 

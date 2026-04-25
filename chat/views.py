@@ -36,48 +36,52 @@ class CreateChatRoomView(APIView):
                 )
 
             payload = {
-                "type": "room_created",
-                "room": {
-                    "room_id": room.id,
-                    "service_name": service.service_name,
-                    "service_image": service.service_image.url if service.service_image else None,
-                    "buyer_id": buyer.id,
-                    "seller_id": seller.id,
-                    "last_message": message_text,
-                    "updated_at": str(room.updated_at)
-                }
+                "room_id": room.id,
+                "service_id": service.id,
+                "buyer_id": buyer.id,
+                "seller_id": seller.id,
+                "last_message": message_text,
+                "updated_at": str(room.updated_at)
             }
 
             channel_layer = get_channel_layer()
 
             async_to_sync(channel_layer.group_send)(
                 f"user_rooms_{seller.id}",
-                payload
+                {
+                    "type": "room_created",
+                    **payload
+                }
             )
 
             async_to_sync(channel_layer.group_send)(
                 f"user_rooms_{buyer.id}",
-                payload
+                {
+                    "type": "room_created",
+                    **payload
+                }
             )
 
             return Response({
                 "room_id": room.id,
-                "created": created
+                "created": created,
+                "last_message": message_text
             })
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
-           
+        
              
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
         rooms = ChatRoom.objects.filter(
             Q(buyer_id=user_id) | Q(seller_id=user_id)
-        ).select_related("service").order_by("-updated_at")
+        ).select_related("service", "buyer", "seller").order_by("-updated_at")
 
         data = []
 
         for room in rooms:
+
             last_msg = room.messages.order_by("-created_at").first()
 
             data.append({
@@ -91,8 +95,7 @@ class ChatRoomListView(APIView):
             })
 
         return Response(data)
-    
-    
+          
 
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
@@ -111,6 +114,7 @@ class ChatHistoryView(APIView):
         except ChatRoom.DoesNotExist:
             return Response({"error": "Room not found"}, status=404)
   
+
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
         try:
@@ -122,24 +126,28 @@ class DeleteChatRoomView(APIView):
             seller_id = room.seller_id
             buyer_id = room.buyer_id
 
-            deleted_id = room.id
             room.delete()
 
             channel_layer = get_channel_layer()
 
             payload = {
-                "type": "room_deleted",
-                "room_id": deleted_id
+                "room_id": room_id
             }
 
             async_to_sync(channel_layer.group_send)(
                 f"user_rooms_{seller_id}",
-                payload
+                {
+                    "type": "room_deleted",
+                    **payload
+                }
             )
 
             async_to_sync(channel_layer.group_send)(
                 f"user_rooms_{buyer_id}",
-                payload
+                {
+                    "type": "room_deleted",
+                    **payload
+                }
             )
 
             return Response({"message": "deleted"})
