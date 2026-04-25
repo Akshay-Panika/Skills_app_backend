@@ -26,10 +26,6 @@ class CreateChatRoomView(APIView):
                 buyer=buyer
             )
 
-            # 🔥 BOOKED TRUE ONLY FOR THIS ROOM
-            room.is_booked = True
-            room.save()
-
             message_text = request.data.get("message", "")
 
             if message_text:
@@ -39,25 +35,21 @@ class CreateChatRoomView(APIView):
                     message=message_text
                 )
 
-            # 🔥 last message
-            last_message = message_text
+            payload = {
+                "type": "room_created",
+                "room": {
+                    "room_id": room.id,
+                    "service_name": service.service_name,
+                    "service_image": service.service_image.url if service.service_image else None,
+                    "buyer_id": buyer.id,
+                    "seller_id": seller.id,
+                    "last_message": message_text,
+                    "updated_at": str(room.updated_at)
+                }
+            }
 
             channel_layer = get_channel_layer()
 
-            payload = {
-                "type": "room_created",
-                "room_id": room.id,
-                "service_id": service.id,
-                "buyer_id": buyer.id,
-                "seller_id": seller.id,
-
-                # 🔥 ALWAYS TRUE (because room created for them)
-                "is_booked": True,
-
-                "last_message": last_message
-            }
-
-            # 🔥 send only to involved users
             async_to_sync(channel_layer.group_send)(
                 f"user_rooms_{seller.id}",
                 payload
@@ -70,62 +62,37 @@ class CreateChatRoomView(APIView):
 
             return Response({
                 "room_id": room.id,
-                "created": created,
-                "last_message": last_message
+                "created": created
             })
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
-        
-
+           
+             
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
-        try:
-            rooms = ChatRoom.objects.filter(
-                Q(buyer_id=user_id) | Q(seller_id=user_id)
-            ).select_related("service", "buyer", "seller").order_by("-updated_at")
+        rooms = ChatRoom.objects.filter(
+            Q(buyer_id=user_id) | Q(seller_id=user_id)
+        ).select_related("service").order_by("-updated_at")
 
-            data = []
+        data = []
 
-            for room in rooms:
+        for room in rooms:
+            last_msg = room.messages.order_by("-created_at").first()
 
-                last_msg_obj = room.messages.order_by("-created_at").first()
-                last_message = last_msg_obj.message if last_msg_obj else ""
+            data.append({
+                "room_id": room.id,
+                "service_name": room.service.service_name,
+                "service_image": room.service.service_image.url if room.service.service_image else None,
+                "buyer_id": room.buyer_id,
+                "seller_id": room.seller_id,
+                "last_message": last_msg.message if last_msg else "",
+                "updated_at": room.updated_at
+            })
 
-                # 🔥 KEY LOGIC HERE
-                is_involved_user = (
-                    room.buyer_id == int(user_id) or
-                    room.seller_id == int(user_id)
-                )
-
-                data.append({
-                    "room_id": room.id,
-
-                    "service": {
-                        "id": room.service.id,
-                        "service_name": room.service.service_name,
-                        "service_image": room.service.service_image.url if room.service.service_image else None,
-
-                        # 🔥 FIXED: ONLY SHOW TRUE FOR INVOLVED USERS
-                        "is_booked": True if is_involved_user and room.is_booked else False
-                    },
-
-                    "buyer_id": room.buyer_id,
-                    "seller_id": room.seller_id,
-
-                    # 🔥 MAIN FIX (THIS IS WHAT YOU WANTED)
-                    "is_booked": True if is_involved_user and room.is_booked else False,
-
-                    "last_message": last_message,
-                    "updated_at": room.updated_at
-                })
-
-            return Response(data)
-
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
-        
-
+        return Response(data)
+    
+    
 
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
@@ -144,7 +111,6 @@ class ChatHistoryView(APIView):
         except ChatRoom.DoesNotExist:
             return Response({"error": "Room not found"}, status=404)
   
-
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
         try:
@@ -156,14 +122,14 @@ class DeleteChatRoomView(APIView):
             seller_id = room.seller_id
             buyer_id = room.buyer_id
 
+            deleted_id = room.id
             room.delete()
 
             channel_layer = get_channel_layer()
 
             payload = {
                 "type": "room_deleted",
-                "room_id": room_id,
-                "is_booked": False
+                "room_id": deleted_id
             }
 
             async_to_sync(channel_layer.group_send)(

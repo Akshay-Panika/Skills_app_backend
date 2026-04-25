@@ -58,7 +58,6 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             return ChatRoom.objects.get(id=self.room_id)
         except ChatRoom.DoesNotExist:
             return None
-        
 
 
 class RoomListConsumer(AsyncWebsocketConsumer):
@@ -74,16 +73,27 @@ class RoomListConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
+        await self.send(text_data=json.dumps({
+            "type": "connected",
+            "message": "room list connected"
+        }))
+
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
         )
 
-    # 🔥 ROOM CREATED EVENT
+    # 🔥 ROOM CREATED
     async def room_created(self, event):
-        await self.send(text_data=json.dumps(event))
+        await self.send(text_data=json.dumps({
+            "type": "room_created",
+            "room": event["room"]
+        }))
 
-    # 🔥 ROOM DELETED EVENT
+    # 🔥 ROOM DELETED
     async def room_deleted(self, event):
-        await self.send(text_data=json.dumps(event))
+        await self.send(text_data=json.dumps({
+            "type": "room_deleted",
+            "room_id": event["room_id"]
+        }))
