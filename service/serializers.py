@@ -56,10 +56,8 @@ class ServiceSerializer(serializers.ModelSerializer):
 
         return ChatRoom.objects.filter(
             service=obj,
-            buyer_id=user_id,
-            is_booked=True
-        ).exists()
-
+            buyer_id=user_id
+        ).exists() 
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
