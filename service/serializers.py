@@ -8,6 +8,8 @@ from subcategory.models import SubCategory
 
 class ServiceSerializer(serializers.ModelSerializer):
     distance = serializers.SerializerMethodField()
+    is_booked = serializers.SerializerMethodField()
+
     service_image = serializers.ImageField(use_url=True, required=False, allow_null=True)
     service_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     swipe_status = serializers.BooleanField(required=False)
@@ -42,6 +44,21 @@ class ServiceSerializer(serializers.ModelSerializer):
 
         # List view
         return self.context.get("distance_map", {}).get(obj.id)
+    
+
+    def get_is_booked(self, obj):
+        user_id = self.context.get("user_id")
+
+        if not user_id:
+            return False
+
+        from chat.models import ChatRoom
+
+        return ChatRoom.objects.filter(
+            service=obj,
+            buyer_id=user_id
+        ).exists()
+
 
     def get_user_profile(self, obj):
         if hasattr(obj.user, "profile"):
