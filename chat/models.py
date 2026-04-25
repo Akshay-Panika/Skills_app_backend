@@ -34,7 +34,12 @@ class ChatRoom(models.Model):
     buyer_typing = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ["service", "seller", "buyer"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "seller", "buyer"],
+                name="unique_chat_room"
+            )
+        ]
 
     def __str__(self):
         return f"Room #{self.id}"

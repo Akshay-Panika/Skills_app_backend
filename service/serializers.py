@@ -54,10 +54,21 @@ class ServiceSerializer(serializers.ModelSerializer):
 
         from chat.models import ChatRoom
 
-        return ChatRoom.objects.filter(
+        # 🔥 check room exists (buyer OR seller)
+        room_exists = ChatRoom.objects.filter(
             service=obj,
             buyer_id=user_id
         ).exists()
+
+        # 👉 buyer booked
+        if room_exists:
+            return True
+
+        # 👉 seller (owner always true)
+        if obj.user_id == user_id:
+            return True
+
+        return False
 
 
     def get_user_profile(self, obj):

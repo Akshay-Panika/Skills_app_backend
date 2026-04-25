@@ -38,18 +38,16 @@ class CreateChatRoomView(APIView):
         try:
             with transaction.atomic():
 
-                # 🔥 same buyer ke liye only one room
                 room, created = ChatRoom.objects.get_or_create(
                     service=service,
                     seller=seller,
-                    buyer=buyer,
-                    defaults={
-                        "is_booked": True
-                    }
+                    buyer=buyer
                 )
 
-                # first message
-                if first_message and created:
+                room.is_booked = True
+                room.save()
+
+                if first_message:
                     ChatMessage.objects.create(
                         room=room,
                         sender=buyer,
@@ -66,6 +64,7 @@ class CreateChatRoomView(APIView):
             return Response({
                 "error": str(e)
             }, status=500)
+        
 
 
 class ChatRoomListView(APIView):
@@ -127,25 +126,19 @@ class ChatHistoryView(APIView):
         })
     
 
-
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
+        user_id = request.query_params.get("user_id")
+
         try:
             room = ChatRoom.objects.get(id=room_id)
 
+            if room.buyer_id != int(user_id) and room.seller_id != int(user_id):
+                return Response({"error": "Not allowed"}, status=403)
+
             room.delete()
 
-            return Response({
-                "message": "Chat room deleted successfully"
-            }, status=200)
+            return Response({"message": "Chat deleted"})
 
         except ChatRoom.DoesNotExist:
-            return Response({
-                "error": "Room not found"
-            }, status=404)
-
-        except Exception as e:
-            return Response({
-                "error": str(e)
-            }, status=500)
-        
+            return Response({"error": "Room not found"}, status=404)
