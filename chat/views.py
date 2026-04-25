@@ -122,11 +122,19 @@ class ChatHistoryView(APIView):
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
         try:
-            room = ChatRoom.objects.get(id=room_id)
+            room = ChatRoom.objects.select_related("service").get(id=room_id)
+
+            # 🔥 service ko unbook karo
+            service = room.service
+            service.is_booked = False
+            service.save(update_fields=["is_booked"])
+
+            # 🔥 room delete
             room.delete()
 
             return Response({
-                "message": "Chat room deleted successfully"
+                "message": "Chat room deleted successfully",
+                "is_booked": False
             }, status=200)
 
         except ChatRoom.DoesNotExist:
