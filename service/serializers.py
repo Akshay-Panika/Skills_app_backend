@@ -6,6 +6,7 @@ from subcategory.serializers import SubCategorySerializer
 from category.models import Category
 from subcategory.models import SubCategory
 from chat.models import ChatRoom
+from django.db.models import Q
 
 
 
@@ -55,8 +56,9 @@ class ServiceSerializer(serializers.ModelSerializer):
             return False
 
         return ChatRoom.objects.filter(
-            service=obj,
-            buyer_id=user_id
+            service=obj
+        ).filter(
+            Q(buyer_id=user_id) | Q(seller_id=user_id)
         ).exists() 
 
     def get_user_profile(self, obj):

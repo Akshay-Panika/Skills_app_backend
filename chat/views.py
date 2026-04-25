@@ -87,7 +87,6 @@ class ChatRoomListView(APIView):
             data.append({
                 "room_id": room.id,
 
-                # 🔥 FULL SERVICE OBJECT (SERIALIZER)
                 "service": ServiceSerializer(room.service).data,
 
                 "buyer_id": room.buyer_id,
