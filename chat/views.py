@@ -86,16 +86,19 @@ class ChatRoomListView(APIView):
 
             data.append({
                 "room_id": room.id,
-                "service_name": room.service.service_name,
-                "service_image": room.service.service_image.url if room.service.service_image else None,
+
+                # 🔥 FULL SERVICE OBJECT (SERIALIZER)
+                "service": ServiceSerializer(room.service).data,
+
                 "buyer_id": room.buyer_id,
                 "seller_id": room.seller_id,
+
                 "last_message": last_msg.message if last_msg else "",
                 "updated_at": room.updated_at
             })
 
         return Response(data)
-          
+             
 
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
