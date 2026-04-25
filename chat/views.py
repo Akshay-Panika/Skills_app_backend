@@ -7,76 +7,62 @@ from .serializers import ChatMessageSerializer
 from service.models import Service
 from service.serializers import ServiceSerializer
 from user_auth.models import UserAuth
-
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 
 class CreateChatRoomView(APIView):
     def post(self, request):
-        service_id = request.data.get("service_id")
-        buyer_id = request.data.get("buyer_id")
-        first_message = request.data.get("message", "").strip()
-
-        if not service_id or not buyer_id:
-            return Response(
-                {"error": "service_id and buyer_id required"},
-                status=400
-            )
-
-        service = get_object_or_404(Service, id=service_id)
-        buyer = get_object_or_404(UserAuth, id=buyer_id)
-
+        service = Service.objects.get(id=request.data["service_id"])
+        buyer = UserAuth.objects.get(id=request.data["buyer_id"])
         seller = service.user
 
-        if seller.id == buyer.id:
-            return Response(
-                {"error": "Seller cannot chat with self"},
-                status=400
-            )
+        room, created = ChatRoom.objects.get_or_create(
+            service=service,
+            seller=seller,
+            buyer=buyer
+        )
 
-        try:
-            with transaction.atomic():
+        room.is_booked = True
+        room.save()
 
-                room, created = ChatRoom.objects.get_or_create(
-                    service=service,
-                    seller=seller,
-                    buyer=buyer
-                )
+        # 🔥 REALTIME PUSH TO BOTH USERS
+        channel_layer = get_channel_layer()
 
-                room.is_booked = True
-                room.save()
+        payload = {
+            "type": "room_created",
+            "room_id": room.id,
+            "service_id": service.id,
+            "buyer_id": buyer.id,
+            "seller_id": seller.id,
+            "is_booked": True
+        }
 
-                if first_message:
-                    ChatMessage.objects.create(
-                        room=room,
-                        sender=buyer,
-                        message=first_message
-                    )
+        # 👉 Seller update
+        async_to_sync(channel_layer.group_send)(
+            f"user_rooms_{seller.id}",
+            payload
+        )
 
-            return Response({
-                "room_id": room.id,
-                "created": created,
-                "is_booked": room.is_booked
-            })
+        # 👉 Buyer update
+        async_to_sync(channel_layer.group_send)(
+            f"user_rooms_{buyer.id}",
+            payload
+        )
 
-        except Exception as e:
-            return Response({
-                "error": str(e)
-            }, status=500)
-        
-
+        return Response({
+            "room_id": room.id,
+            "created": created
+        })
 
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
         rooms = ChatRoom.objects.filter(
-            Q(buyer_id=user_id) |
-            Q(seller_id=user_id)
-        ).select_related(
-            "service",
-            "buyer",
-            "seller"
-        ).order_by("-updated_at")
+            Q(buyer_id=user_id) | Q(seller_id=user_id)
+        ).select_related("service", "buyer", "seller").order_by("-updated_at")
 
         data = []
 
@@ -85,65 +71,60 @@ class ChatRoomListView(APIView):
 
             data.append({
                 "room_id": room.id,
-
-                # 🔥 SERVICE INFO
                 "service": ServiceSerializer(room.service).data,
-
                 "buyer_id": room.buyer.id,
                 "seller_id": room.seller.id,
-
-                # 🔥 BOOKING STATUS
                 "is_booked": room.is_booked,
-
-                # 🔥 LAST MESSAGE
                 "last_message": last_message.message if last_message else "",
                 "updated_at": last_message.created_at if last_message else room.created_at
             })
 
         return Response(data)
-    
-    
+
+
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
         try:
             room = ChatRoom.objects.get(id=room_id)
 
-        except ChatRoom.DoesNotExist:
+            messages = ChatMessage.objects.filter(room=room).order_by("created_at")
+
+            serializer = ChatMessageSerializer(messages, many=True)
+
             return Response({
-                "error": "Room not found"
-            }, status=404)
-
-        messages = ChatMessage.objects.filter(
-            room=room
-        ).order_by("created_at")
-
-        serializer = ChatMessageSerializer(
-            messages,
-            many=True
-        )
-
-        return Response({
-            "room_id": room.id,
-            "messages": serializer.data
-        })
-    
-
-class DeleteChatRoomView(APIView):
-    def delete(self, request, room_id):
-        user_id = request.query_params.get("user_id")
-
-        if not user_id:
-            return Response({"error": "user_id required"}, status=400)
-
-        try:
-            room = ChatRoom.objects.get(id=room_id)
-
-            if room.buyer_id != int(user_id) and room.seller_id != int(user_id):
-                return Response({"error": "Not allowed"}, status=403)
-
-            room.delete()
-
-            return Response({"message": "Chat deleted"})
+                "room_id": room.id,
+                "messages": serializer.data
+            })
 
         except ChatRoom.DoesNotExist:
             return Response({"error": "Room not found"}, status=404)
+        
+class DeleteChatRoomView(APIView):
+    def delete(self, request, room_id):
+        room = ChatRoom.objects.get(id=room_id)
+
+        seller_id = room.seller_id
+        buyer_id = room.buyer_id
+
+        room.delete()
+
+        channel_layer = get_channel_layer()
+
+        payload = {
+            "type": "room_deleted",
+            "room_id": room_id,
+            "is_booked": False
+        }
+
+        async_to_sync(channel_layer.group_send)(
+            f"user_rooms_{seller_id}",
+            payload
+        )
+
+        async_to_sync(channel_layer.group_send)(
+            f"user_rooms_{buyer_id}",
+            payload
+        )
+
+        return Response({"message": "deleted"})
+    

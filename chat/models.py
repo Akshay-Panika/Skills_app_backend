@@ -4,23 +4,9 @@ from service.models import Service
 
 
 class ChatRoom(models.Model):
-    service = models.ForeignKey(
-        Service,
-        on_delete=models.CASCADE,
-        related_name="chat_rooms"
-    )
-
-    seller = models.ForeignKey(
-        UserAuth,
-        on_delete=models.CASCADE,
-        related_name="seller_rooms"
-    )
-
-    buyer = models.ForeignKey(
-        UserAuth,
-        on_delete=models.CASCADE,
-        related_name="buyer_rooms"
-    )
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="chat_rooms")
+    seller = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="seller_rooms")
+    buyer = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="buyer_rooms")
 
     is_booked = models.BooleanField(default=True)
 
@@ -34,39 +20,19 @@ class ChatRoom(models.Model):
     buyer_typing = models.BooleanField(default=False)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["service", "seller", "buyer"],
-                name="unique_chat_room"
-            )
-        ]
+        unique_together = ("service", "seller", "buyer")
 
     def __str__(self):
-        return f"Room #{self.id}"
+        return f"Room {self.id}"
 
 
 class ChatMessage(models.Model):
-    room = models.ForeignKey(
-        ChatRoom,
-        on_delete=models.CASCADE,
-        related_name="messages"
-    )
-
-    sender = models.ForeignKey(
-        UserAuth,
-        on_delete=models.CASCADE,
-        related_name="sent_messages"
-    )
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(UserAuth, on_delete=models.CASCADE)
 
     message = models.TextField()
-
-    is_delivered = models.BooleanField(default=True)
     is_seen = models.BooleanField(default=False)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["created_at"]
-
-    def __str__(self):
-        return self.message[:50]

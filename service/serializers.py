@@ -5,6 +5,9 @@ from category.serializers import CategorySerializer
 from subcategory.serializers import SubCategorySerializer
 from category.models import Category
 from subcategory.models import SubCategory
+from chat.models import ChatRoom
+
+
 
 class ServiceSerializer(serializers.ModelSerializer):
     distance = serializers.SerializerMethodField()
@@ -45,18 +48,16 @@ class ServiceSerializer(serializers.ModelSerializer):
         # List view
         return self.context.get("distance_map", {}).get(obj.id)
     
-    
     def get_is_booked(self, obj):
         user_id = self.context.get("user_id")
 
         if not user_id:
             return False
 
-        from chat.models import ChatRoom
-
         return ChatRoom.objects.filter(
             service=obj,
-            buyer_id=user_id
+            buyer_id=user_id,
+            is_booked=True
         ).exists()
 
 
