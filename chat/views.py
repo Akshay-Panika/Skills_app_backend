@@ -101,6 +101,8 @@ class ChatRoomListView(APIView):
             })
 
         return Response(data)
+    
+    
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
         try:
@@ -129,6 +131,9 @@ class ChatHistoryView(APIView):
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
         user_id = request.query_params.get("user_id")
+
+        if not user_id:
+            return Response({"error": "user_id required"}, status=400)
 
         try:
             room = ChatRoom.objects.get(id=room_id)
