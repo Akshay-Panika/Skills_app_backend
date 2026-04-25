@@ -8,7 +8,7 @@ class ChatRoom(models.Model):
     seller = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="seller_rooms")
     buyer = models.ForeignKey(UserAuth, on_delete=models.CASCADE, related_name="buyer_rooms")
 
-    is_booked = models.BooleanField(default=True)
+    is_booked = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

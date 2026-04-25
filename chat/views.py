@@ -13,73 +13,115 @@ from django.shortcuts import get_object_or_404
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-
 class CreateChatRoomView(APIView):
     def post(self, request):
-        service = Service.objects.get(id=request.data["service_id"])
-        buyer = UserAuth.objects.get(id=request.data["buyer_id"])
-        seller = service.user
+        try:
+            service = Service.objects.get(id=request.data["service_id"])
+            buyer = UserAuth.objects.get(id=request.data["buyer_id"])
+            seller = service.user
 
-        room, created = ChatRoom.objects.get_or_create(
-            service=service,
-            seller=seller,
-            buyer=buyer
-        )
+            room, created = ChatRoom.objects.get_or_create(
+                service=service,
+                seller=seller,
+                buyer=buyer
+            )
 
-        room.is_booked = True
-        room.save()
+            room.is_booked = True
+            room.save()
 
-        # 🔥 REALTIME PUSH TO BOTH USERS
-        channel_layer = get_channel_layer()
+            # 🔥 SAVE FIRST MESSAGE (IMPORTANT FIX)
+            message_text = request.data.get("message", "")
 
-        payload = {
-            "type": "room_created",
-            "room_id": room.id,
-            "service_id": service.id,
-            "buyer_id": buyer.id,
-            "seller_id": seller.id,
-            "is_booked": True
-        }
+            if message_text:
+                ChatMessage.objects.create(
+                    room=room,
+                    sender=buyer,
+                    message=message_text
+                )
 
-        # 👉 Seller update
-        async_to_sync(channel_layer.group_send)(
-            f"user_rooms_{seller.id}",
-            payload
-        )
+            last_message = message_text
 
-        # 👉 Buyer update
-        async_to_sync(channel_layer.group_send)(
-            f"user_rooms_{buyer.id}",
-            payload
-        )
+            # 🔥 REALTIME
+            channel_layer = get_channel_layer()
 
-        return Response({
-            "room_id": room.id,
-            "created": created
-        })
+            payload = {
+                "type": "room_created",
+                "room_id": room.id,
+                "service_id": service.id,
+                "buyer_id": buyer.id,
+                "seller_id": seller.id,
+                "is_booked": True,
+                "last_message": last_message   # 🔥 FIX
+            }
+
+            async_to_sync(channel_layer.group_send)(
+                f"user_rooms_{seller.id}",
+                payload
+            )
+
+            async_to_sync(channel_layer.group_send)(
+                f"user_rooms_{buyer.id}",
+                payload
+            )
+
+            return Response({
+                "room_id": room.id,
+                "created": created,
+                "last_message": last_message
+            })
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=500
+            )
+        
+
 
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
-        rooms = ChatRoom.objects.filter(
-            Q(buyer_id=user_id) | Q(seller_id=user_id)
-        ).select_related("service", "buyer", "seller").order_by("-updated_at")
+        try:
+            rooms = ChatRoom.objects.filter(
+                Q(buyer_id=user_id) | Q(seller_id=user_id)
+            ).select_related("service", "buyer", "seller").order_by("-updated_at")
 
-        data = []
+            data = []
 
-        for room in rooms:
-            last_message = room.messages.last()
+            for room in rooms:
 
-            data.append({
-                "room_id": room.id,
-                "service": ServiceSerializer(room.service).data,
-                "buyer_id": room.buyer.id,
-                "seller_id": room.seller.id,
-                "is_booked": room.is_booked,
-                "last_message": last_message.message if last_message else "",
-                "updated_at": last_message.created_at if last_message else room.created_at
-            })
+                # 🔥 FIX: last message correct fetch
+                last_msg_obj = room.messages.order_by("-created_at").first()
+                last_message = last_msg_obj.message if last_msg_obj else ""
 
-        return Response(data)
+                data.append({
+                    "room_id": room.id,
+
+                    # 🔥 SERVICE (as you want)
+                    "service": {
+                        "id": room.service.id,
+                        "service_name": room.service.service_name,
+                        "service_image": room.service.service_image.url if room.service.service_image else None,
+                        "is_booked": room.is_booked   # ✔ ONLY THIS IS CORRECT
+                    },
+
+                    "buyer_id": room.buyer.id,
+                    "seller_id": room.seller.id,
+
+                    "is_booked": room.is_booked,
+
+                    "last_message": last_message,   # 🔥 FIXED
+
+                    "updated_at": room.updated_at
+                })
+
+            return Response(data)
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=500
+            )
+        
 
 
 class ChatHistoryView(APIView):
@@ -98,33 +140,47 @@ class ChatHistoryView(APIView):
 
         except ChatRoom.DoesNotExist:
             return Response({"error": "Room not found"}, status=404)
-        
+  
+
+
 class DeleteChatRoomView(APIView):
     def delete(self, request, room_id):
-        room = ChatRoom.objects.get(id=room_id)
+        try:
+            room = ChatRoom.objects.filter(id=room_id).first()
 
-        seller_id = room.seller_id
-        buyer_id = room.buyer_id
+            if not room:
+                return Response(
+                    {"error": "Room not found"},
+                    status=404
+                )
 
-        room.delete()
+            seller_id = room.seller_id
+            buyer_id = room.buyer_id
 
-        channel_layer = get_channel_layer()
+            room.delete()
 
-        payload = {
-            "type": "room_deleted",
-            "room_id": room_id,
-            "is_booked": False
-        }
+            channel_layer = get_channel_layer()
 
-        async_to_sync(channel_layer.group_send)(
-            f"user_rooms_{seller_id}",
-            payload
-        )
+            payload = {
+                "type": "room_deleted",
+                "room_id": room_id,
+                "is_booked": False
+            }
 
-        async_to_sync(channel_layer.group_send)(
-            f"user_rooms_{buyer_id}",
-            payload
-        )
+            async_to_sync(channel_layer.group_send)(
+                f"user_rooms_{seller_id}",
+                payload
+            )
 
-        return Response({"message": "deleted"})
-    
+            async_to_sync(channel_layer.group_send)(
+                f"user_rooms_{buyer_id}",
+                payload
+            )
+
+            return Response({"message": "deleted"})
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=500
+            )
