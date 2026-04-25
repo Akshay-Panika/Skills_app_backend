@@ -45,7 +45,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         # List view
         return self.context.get("distance_map", {}).get(obj.id)
     
-
+    
     def get_is_booked(self, obj):
         user_id = self.context.get("user_id")
 
@@ -54,21 +54,10 @@ class ServiceSerializer(serializers.ModelSerializer):
 
         from chat.models import ChatRoom
 
-        # 🔥 check room exists (buyer OR seller)
-        room_exists = ChatRoom.objects.filter(
+        return ChatRoom.objects.filter(
             service=obj,
             buyer_id=user_id
         ).exists()
-
-        # 👉 buyer booked
-        if room_exists:
-            return True
-
-        # 👉 seller (owner always true)
-        if obj.user_id == user_id:
-            return True
-
-        return False
 
 
     def get_user_profile(self, obj):

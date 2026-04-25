@@ -87,7 +87,8 @@ class ServiceListView(APIView):
             many=True,
             context={
                 "favorite_ids": favorite_ids,
-                "distance_map": distance_map
+                "distance_map": distance_map,
+                "user_id": user_id
             }
         )
 
@@ -136,7 +137,8 @@ class ServiceDetailView(APIView):
             service,
             context={
                 "favorite_ids": favorite_ids,
-                "distance": distance
+                "distance": distance,
+                "user_id": user_id
             }
         )
 
