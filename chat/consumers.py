@@ -20,17 +20,20 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
         query = parse_qs(self.scope["query_string"].decode())
         user_id = query.get("user_id", [None])[0]
 
-        self.user_id = int(user_id) if user_id else None
+        if not user_id:
+            await self.close()
+            return
+
+        self.user_id = int(user_id)
 
         room = await self.get_room()
-
         if not room:
             await self.close()
             return
 
         self.service_group = f"service_{room.service_id}"
 
-        # Join room group
+        # Join chat room group
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
@@ -44,12 +47,23 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
+        # ONLINE STATUS
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "user_online_status",
+                "user_id": self.user_id,
+                "is_online": True
+            }
+        )
+
         await self.send(text_data=json.dumps({
             "type": "connected",
             "message": "chat socket connected"
         }))
 
     async def disconnect(self, close_code):
+        # Leave groups
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
@@ -60,39 +74,65 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # =====================================================
-    # VERY IMPORTANT → THIS WAS MISSING
-    # This receives message from Flutter socket.sendMessage()
-    # =====================================================
+        # OFFLINE STATUS
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "user_online_status",
+                "user_id": self.user_id,
+                "is_online": False
+            }
+        )
+
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
+            event_type = data.get("type")
 
-            message = data.get("message")
-            sender_id = data.get("sender")
+            # =========================================
+            # NEW MESSAGE
+            # =========================================
+            if event_type == "chat_message":
+                message = data.get("message")
+                sender_id = data.get("sender")
 
-            if not message or not sender_id:
-                return
+                if not message or not sender_id:
+                    return
 
-            # Save in database
-            msg = await self.save_message(
-                sender_id=sender_id,
-                message=message
-            )
+                msg = await self.save_message(
+                    sender_id=sender_id,
+                    message=message
+                )
 
-            # Broadcast to all users in same room
-            await self.channel_layer.group_send(
-                self.group_name,
-                {
-                    "type": "chat_message",
-                    "id": msg.id,
-                    "room": self.room_id,
-                    "sender": msg.sender_id,
-                    "message": msg.message,
-                    "is_seen": msg.is_seen,
-                    "created_at": str(msg.created_at),
-                }
-            )
+                # Broadcast to all users in same room
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "chat_message",
+                        "id": msg.id,
+                        "room": self.room_id,
+                        "sender": msg.sender_id,
+                        "message": msg.message,
+                        "is_seen": msg.is_seen,
+                        "created_at": str(msg.created_at),
+                    }
+                )
+
+            # =========================================
+            # TYPING STATUS
+            # =========================================
+            elif event_type == "typing":
+                is_typing = data.get("is_typing", False)
+
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "chat_typing",
+                        "user_id": self.user_id,
+                        "is_typing": is_typing
+                    }
+                )
 
         except Exception as e:
             await self.send(text_data=json.dumps({
@@ -101,8 +141,9 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             }))
 
     # =====================================================
-    # Send message to frontend
+    # SEND TO FRONTEND
     # =====================================================
+
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             "type": "chat_message",
@@ -114,21 +155,30 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             "created_at": event["created_at"],
         }))
 
+    async def chat_typing(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "typing",
+            "user_id": event["user_id"],
+            "is_typing": event["is_typing"]
+        }))
+
+    async def user_online_status(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "online_status",
+            "user_id": event["user_id"],
+            "is_online": event["is_online"]
+        }))
+
     async def room_created(self, event):
         await self.send(text_data=json.dumps(event))
 
     async def room_deleted(self, event):
         await self.send(text_data=json.dumps(event))
 
-    async def chat_typing(self, event):
-        await self.send(text_data=json.dumps(event))
-
-    async def user_online_status(self, event):
-        await self.send(text_data=json.dumps(event))
-
     # =====================================================
     # DB FUNCTIONS
     # =====================================================
+
     @sync_to_async
     def get_room(self):
         try:
@@ -147,7 +197,7 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             message=message
         )
 
-        # update room updated_at
+        # update updated_at
         room.save()
 
         return msg
@@ -182,7 +232,9 @@ class RoomListConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # New room created
+    # =========================================
+    # ROOM CREATED
+    # =========================================
     async def room_created(self, event):
         await self.send(text_data=json.dumps({
             "type": "room_created",
@@ -194,7 +246,9 @@ class RoomListConsumer(AsyncWebsocketConsumer):
             "updated_at": event["updated_at"],
         }))
 
-    # Room deleted
+    # =========================================
+    # ROOM DELETED
+    # =========================================
     async def room_deleted(self, event):
         await self.send(text_data=json.dumps({
             "type": "room_deleted",
