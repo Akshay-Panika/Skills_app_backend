@@ -90,7 +90,10 @@ class ChatRoomListView(APIView):
                 "service": ServiceSerializer(room.service).data,
 
                 "buyer_id": room.buyer_id,
+                "buyer_name": room.buyer.user_name,
+
                 "seller_id": room.seller_id,
+                "seller_name": room.seller.user_name,
 
                 "last_message": last_msg.message if last_msg else "",
                 "updated_at": room.updated_at
