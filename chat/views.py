@@ -76,31 +76,44 @@ class ChatRoomListView(APIView):
     def get(self, request, user_id):
         rooms = ChatRoom.objects.filter(
             Q(buyer_id=user_id) | Q(seller_id=user_id)
-        ).select_related("service", "buyer", "seller").order_by("-updated_at")
+        ).select_related(
+            "service",
+            "buyer",
+            "seller"
+        ).order_by("-updated_at")
 
         data = []
 
         for room in rooms:
-
-            last_msg = room.messages.order_by("-created_at").first()
+            last_msg = room.messages.order_by(
+                "-created_at"
+            ).first()
 
             data.append({
                 "room_id": room.id,
 
-                "service": ServiceSerializer(room.service).data,
+                # service full data
+                "service": ServiceSerializer(
+                    room.service
+                ).data,
 
+                # buyer info
                 "buyer_id": room.buyer_id,
                 "buyer_name": room.buyer.user_name,
 
+                # seller info
                 "seller_id": room.seller_id,
                 "seller_name": room.seller.user_name,
 
-                "last_message": last_msg.message if last_msg else "",
+                # last message
+                "last_message":
+                    last_msg.message if last_msg else "",
+
+                # updated time
                 "updated_at": room.updated_at
             })
 
-        return Response(data)
-             
+        return Response(data)     
 
 class ChatHistoryView(APIView):
     def get(self, request, room_id):
