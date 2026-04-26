@@ -70,60 +70,6 @@ class CreateChatRoomView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
-        
-# class ChatRoomListView(APIView):
-#     def get(self, request, user_id):
-#         rooms = ChatRoom.objects.filter(
-#             Q(buyer_id=user_id) | Q(seller_id=user_id)
-#         ).select_related(
-#             "service",
-#             "buyer",
-#             "seller"
-#         ).order_by("-updated_at")
-
-#         data = []
-
-#         for room in rooms:
-#             last_msg = room.messages.order_by(
-#                 "-created_at"
-#             ).first()
-
-#             data.append({
-#                 "room_id": room.id,
-
-#                 # service full data
-#                 "service": ServiceSerializer(
-#                     room.service
-#                 ).data,
-
-#                 # buyer info
-#                 "buyer_id": room.buyer_id,
-#                 "buyer_name": (
-#                     room.buyer.profile.user_name
-#                     if hasattr(room.buyer, "profile")
-#                     and room.buyer.profile.user_name
-#                     else room.buyer.user_phone
-#                 ),
-
-#                 # seller info
-#                 "seller_id": room.seller_id,
-#                 "seller_name": (
-#                     room.seller.profile.user_name
-#                     if hasattr(room.seller, "profile")
-#                     and room.seller.profile.user_name
-#                     else room.seller.user_phone
-#                 ),
-
-#                 # last message
-#                 "last_message": (
-#                     last_msg.message if last_msg else ""
-#                 ),
-
-#                 # updated time
-#                 "updated_at": room.updated_at
-#             })
-
-#         return Response(data)
 
 class ChatRoomListView(APIView):
     def get(self, request, user_id):
@@ -209,43 +155,48 @@ class ChatHistoryView(APIView):
         except ChatRoom.DoesNotExist:
             return Response({"error": "Room not found"}, status=404)
   
-
-class DeleteChatRoomView(APIView):
-    def delete(self, request, room_id):
+class BulkDeleteChatRoomView(APIView):
+    def delete(self, request):
         try:
-            room = ChatRoom.objects.filter(id=room_id).first()
+            room_ids = request.data.get("room_ids", [])
 
-            if not room:
-                return Response({"error": "Room not found"}, status=404)
+            if not room_ids:
+                return Response(
+                    {"error": "room_ids required"},
+                    status=400
+                )
 
-            seller_id = room.seller_id
-            buyer_id = room.buyer_id
+            rooms = ChatRoom.objects.filter(id__in=room_ids)
 
-            room.delete()
+            if not rooms.exists():
+                return Response(
+                    {"error": "Rooms not found"},
+                    status=404
+                )
+
+            seller_ids = list(rooms.values_list("seller_id", flat=True))
+            buyer_ids = list(rooms.values_list("buyer_id", flat=True))
+
+            rooms.delete()
 
             channel_layer = get_channel_layer()
 
-            payload = {
-                "room_id": room_id
-            }
+            payload = {"room_ids": room_ids}
 
-            async_to_sync(channel_layer.group_send)(
-                f"user_rooms_{seller_id}",
-                {
-                    "type": "room_deleted",
-                    **payload
-                }
-            )
+            # notify all users
+            for uid in set(seller_ids + buyer_ids):
+                async_to_sync(channel_layer.group_send)(
+                    f"user_rooms_{uid}",
+                    {
+                        "type": "room_deleted_bulk",
+                        **payload
+                    }
+                )
 
-            async_to_sync(channel_layer.group_send)(
-                f"user_rooms_{buyer_id}",
-                {
-                    "type": "room_deleted",
-                    **payload
-                }
-            )
-
-            return Response({"message": "deleted"})
+            return Response({
+                "message": "deleted",
+                "deleted_ids": room_ids
+            })
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)

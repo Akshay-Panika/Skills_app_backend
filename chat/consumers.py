@@ -234,10 +234,6 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
         return msg
 
 
-# =====================================================
-# ROOM LIST SOCKET
-# =====================================================
-
 class RoomListConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
@@ -278,8 +274,8 @@ class RoomListConsumer(AsyncWebsocketConsumer):
             "updated_at": str(event["updated_at"]),
         }))
 
-    async def room_deleted(self, event):
+    async def room_deleted_bulk(self, event):
         await self.send(text_data=json.dumps({
-            "type": "room_deleted",
-            "room_id": int(event["room_id"]),
+            "type": "room_deleted_bulk",
+            "room_ids": event["room_ids"]
         }))
