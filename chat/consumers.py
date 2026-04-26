@@ -1,4 +1,4 @@
-# chat/consumers.py
+# chat/consumers.py (FULL UPDATED FIXED CODE)
 
 import json
 from urllib.parse import parse_qs
@@ -14,10 +14,16 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         # ws/chat/<room_id>/
-        self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
+        self.room_id = int(
+            self.scope["url_route"]["kwargs"]["room_id"]
+        )
+
         self.group_name = f"chat_{self.room_id}"
 
-        query = parse_qs(self.scope["query_string"].decode())
+        query = parse_qs(
+            self.scope["query_string"].decode()
+        )
+
         user_id = query.get("user_id", [None])[0]
 
         if not user_id:
@@ -27,19 +33,20 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
         self.user_id = int(user_id)
 
         room = await self.get_room()
+
         if not room:
             await self.close()
             return
 
         self.service_group = f"service_{room.service_id}"
 
-        # Join chat room group
+        # join room group
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
         )
 
-        # Optional service group
+        # optional service group
         await self.channel_layer.group_add(
             self.service_group,
             self.channel_name
@@ -47,13 +54,13 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-        # ONLINE STATUS
+        # online status broadcast
         await self.channel_layer.group_send(
             self.group_name,
             {
                 "type": "user_online_status",
                 "user_id": self.user_id,
-                "is_online": True
+                "is_online": True,
             }
         )
 
@@ -63,7 +70,6 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def disconnect(self, close_code):
-        # Leave groups
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
@@ -74,25 +80,24 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-        # OFFLINE STATUS
+        # offline status broadcast
         await self.channel_layer.group_send(
             self.group_name,
             {
                 "type": "user_online_status",
                 "user_id": self.user_id,
-                "is_online": False
+                "is_online": False,
             }
         )
-
 
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
             event_type = data.get("type")
 
-            # =========================================
-            # NEW MESSAGE
-            # =========================================
+            # ====================================
+            # CHAT MESSAGE
+            # ====================================
             if event_type == "chat_message":
                 message = data.get("message")
                 sender_id = data.get("sender")
@@ -100,37 +105,56 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
                 if not message or not sender_id:
                     return
 
+                sender_id = int(sender_id)
+
                 msg = await self.save_message(
                     sender_id=sender_id,
                     message=message
                 )
 
-                # Broadcast to all users in same room
+                # IMPORTANT FIX:
+                # room must be int not string
                 await self.channel_layer.group_send(
                     self.group_name,
                     {
                         "type": "chat_message",
-                        "id": msg.id,
-                        "room": self.room_id,
-                        "sender": msg.sender_id,
-                        "message": msg.message,
-                        "is_seen": msg.is_seen,
+                        "id": int(msg.id),
+                        "room": int(self.room_id),
+                        "sender": int(msg.sender_id),
+                        "message": str(msg.message),
+                        "is_seen": bool(msg.is_seen),
                         "created_at": str(msg.created_at),
                     }
                 )
 
-            # =========================================
+            # ====================================
             # TYPING STATUS
-            # =========================================
+            # ====================================
             elif event_type == "typing":
-                is_typing = data.get("is_typing", False)
+                # Flutter sends: typing
+                is_typing = data.get("typing", False)
 
                 await self.channel_layer.group_send(
                     self.group_name,
                     {
                         "type": "chat_typing",
-                        "user_id": self.user_id,
-                        "is_typing": is_typing
+                        "user_id": int(self.user_id),
+                        "is_typing": bool(is_typing),
+                    }
+                )
+
+            # ====================================
+            # ONLINE STATUS
+            # ====================================
+            elif event_type == "online_status":
+                is_online = data.get("is_online", False)
+
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "user_online_status",
+                        "user_id": int(self.user_id),
+                        "is_online": bool(is_online),
                     }
                 )
 
@@ -140,33 +164,33 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
                 "message": str(e)
             }))
 
-    # =====================================================
-    # SEND TO FRONTEND
-    # =====================================================
+    # ====================================
+    # SEND TO FLUTTER
+    # ====================================
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             "type": "chat_message",
-            "id": event["id"],
-            "room": event["room"],
-            "sender": event["sender"],
-            "message": event["message"],
-            "is_seen": event["is_seen"],
-            "created_at": event["created_at"],
+            "id": int(event["id"]),
+            "room": int(event["room"]),
+            "sender": int(event["sender"]),
+            "message": str(event["message"]),
+            "is_seen": bool(event["is_seen"]),
+            "created_at": str(event["created_at"]),
         }))
 
     async def chat_typing(self, event):
         await self.send(text_data=json.dumps({
             "type": "typing",
-            "user_id": event["user_id"],
-            "is_typing": event["is_typing"]
+            "user_id": int(event["user_id"]),
+            "is_typing": bool(event["is_typing"]),
         }))
 
     async def user_online_status(self, event):
         await self.send(text_data=json.dumps({
             "type": "online_status",
-            "user_id": event["user_id"],
-            "is_online": event["is_online"]
+            "user_id": int(event["user_id"]),
+            "is_online": bool(event["is_online"]),
         }))
 
     async def room_created(self, event):
@@ -175,21 +199,28 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
     async def room_deleted(self, event):
         await self.send(text_data=json.dumps(event))
 
-    # =====================================================
-    # DB FUNCTIONS
-    # =====================================================
+    # ====================================
+    # DATABASE FUNCTIONS
+    # ====================================
 
     @sync_to_async
     def get_room(self):
         try:
-            return ChatRoom.objects.get(id=self.room_id)
+            return ChatRoom.objects.get(
+                id=self.room_id
+            )
         except ChatRoom.DoesNotExist:
             return None
 
     @sync_to_async
     def save_message(self, sender_id, message):
-        room = ChatRoom.objects.get(id=self.room_id)
-        sender = UserAuth.objects.get(id=sender_id)
+        room = ChatRoom.objects.get(
+            id=self.room_id
+        )
+
+        sender = UserAuth.objects.get(
+            id=sender_id
+        )
 
         msg = ChatMessage.objects.create(
             room=room,
@@ -197,22 +228,26 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
             message=message
         )
 
-        # update updated_at
+        # update room updated_at
         room.save()
 
         return msg
 
 
-# =========================================================
+# =====================================================
 # ROOM LIST SOCKET
-# =========================================================
+# =====================================================
 
 class RoomListConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
-        # ws/user/<user_id>/rooms/
-        self.user_id = self.scope["url_route"]["kwargs"]["user_id"]
-        self.group_name = f"user_rooms_{self.user_id}"
+        self.user_id = int(
+            self.scope["url_route"]["kwargs"]["user_id"]
+        )
+
+        self.group_name = (
+            f"user_rooms_{self.user_id}"
+        )
 
         await self.channel_layer.group_add(
             self.group_name,
@@ -232,25 +267,19 @@ class RoomListConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # =========================================
-    # ROOM CREATED
-    # =========================================
     async def room_created(self, event):
         await self.send(text_data=json.dumps({
             "type": "room_created",
-            "room_id": event["room_id"],
-            "service_id": event["service_id"],
-            "buyer_id": event["buyer_id"],
-            "seller_id": event["seller_id"],
-            "last_message": event["last_message"],
-            "updated_at": event["updated_at"],
+            "room_id": int(event["room_id"]),
+            "service_id": int(event["service_id"]),
+            "buyer_id": int(event["buyer_id"]),
+            "seller_id": int(event["seller_id"]),
+            "last_message": str(event["last_message"]),
+            "updated_at": str(event["updated_at"]),
         }))
 
-    # =========================================
-    # ROOM DELETED
-    # =========================================
     async def room_deleted(self, event):
         await self.send(text_data=json.dumps({
             "type": "room_deleted",
-            "room_id": event["room_id"]
+            "room_id": int(event["room_id"]),
         }))
