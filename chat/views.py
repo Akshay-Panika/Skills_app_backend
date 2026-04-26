@@ -89,30 +89,34 @@ class ChatRoomListView(APIView):
                 "-created_at"
             ).first()
 
-            data.append({
-                "room_id": room.id,
+        data.append({
+            "room_id": room.id,
 
-                # service full data
-                "service": ServiceSerializer(
-                    room.service
-                ).data,
+            # service full data
+            "service": ServiceSerializer(
+                room.service
+            ).data,
 
-                # buyer info
-                "buyer_id": room.buyer_id,
-                "buyer_name": room.buyer.user_name,
+            # buyer info
+            "buyer_id": room.buyer_id,
+            "buyer_name": room.buyer.profile.user_name
+                if hasattr(room.buyer, "profile")
+                else room.buyer.user_phone,
 
-                # seller info
-                "seller_id": room.seller_id,
-                "seller_name": room.seller.user_name,
+            # seller info
+            "seller_id": room.seller_id,
+            "seller_name": room.seller.profile.user_name
+                if hasattr(room.seller, "profile")
+                else room.seller.user_phone,
 
-                # last message
-                "last_message":
-                    last_msg.message if last_msg else "",
+            # last message
+            "last_message":
+                last_msg.message if last_msg else "",
 
-                # updated time
-                "updated_at": room.updated_at
-            })
-
+            # updated time
+            "updated_at": room.updated_at
+        })
+        
         return Response(data)     
 
 class ChatHistoryView(APIView):
