@@ -13,6 +13,10 @@ from django.shortcuts import get_object_or_404
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+
+
+
+
 class CreateChatRoomView(APIView):
     def post(self, request):
         try:
@@ -84,19 +88,32 @@ class ChatRoomListView(APIView):
         data = []
 
         for room in rooms:
-            last_msg = room.messages.order_by(
-                "-created_at"
-            ).first()
+            last_msg = room.messages.order_by("-created_at").first()
+
+
+            last_message = ""
+            last_message_sender = None
+            is_seen = True
+
+            # ✅ APPLY LOGIC
+            if last_msg:
+                last_message = last_msg.message
+                last_message_sender = last_msg.sender_id
+
+                # 🔥 CORE LOGIC
+                if last_msg.sender_id == user_id:
+                    # mera message → check actual seen
+                    is_seen = last_msg.is_seen
+                else:
+                    # dusre ka message → always seen
+                    is_seen = True
+
 
             data.append({
                 "room_id": room.id,
 
-                # service full data
-                "service": ServiceSerializer(
-                    room.service
-                ).data,
+                "service": ServiceSerializer(room.service).data,
 
-                # buyer info
                 "buyer_id": room.buyer_id,
                 "buyer_name": (
                     room.buyer.profile.user_name
@@ -111,7 +128,6 @@ class ChatRoomListView(APIView):
                     else None
                 ),
 
-                # seller info
                 "seller_id": room.seller_id,
                 "seller_name": (
                     room.seller.profile.user_name
@@ -126,18 +142,13 @@ class ChatRoomListView(APIView):
                     else None
                 ),
 
-                # last message
-                "last_message": (
-                    last_msg.message if last_msg else ""
-                ),
+                "last_message": last_message,
+                "last_message_sender": last_message_sender,
+                "is_seen": is_seen,
 
-                "last_message_sender": last_msg.sender_id if last_msg else None,
-                "is_seen": last_msg.is_seen if last_msg else True,
-
-                # updated time
                 "updated_at": room.updated_at
             })
-
+        
         return Response(data)
     
 

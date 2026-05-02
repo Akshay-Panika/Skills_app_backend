@@ -432,6 +432,7 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
                     {
                         "type": "messages_seen",
                         "user_id": self.user_id,
+                        "room_id": self.room_id,
                     }
                 )
 
@@ -469,6 +470,7 @@ class ServiceChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "seen",
             "user_id": event["user_id"],
+            "room_id": event["room_id"],
         }))
 
     async def room_created(self, event):
