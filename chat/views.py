@@ -131,6 +131,9 @@ class ChatRoomListView(APIView):
                     last_msg.message if last_msg else ""
                 ),
 
+                "last_message_sender": last_msg.sender_id if last_msg else None,
+                "is_seen": last_msg.is_seen if last_msg else True,
+
                 # updated time
                 "updated_at": room.updated_at
             })
