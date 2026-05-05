@@ -40,10 +40,7 @@ class SubCategoryByCategoryView(APIView):
         return Response(serializer.data, status=201)
 
 
-    # ✅ PUT (update)
-    def put(self, request, category_id):
-        subcategory_id = request.data.get("id")
-
+    def put(self, request, category_id, subcategory_id):
         subcategory = SubCategory.objects.filter(
             id=subcategory_id,
             category_id=category_id
@@ -61,7 +58,6 @@ class SubCategoryByCategoryView(APIView):
         serializer.save()
 
         return Response(serializer.data)
-
 
 # ✅ DELETE Separate View (clean URL)
 class SubCategoryDeleteView(APIView):
