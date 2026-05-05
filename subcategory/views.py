@@ -70,4 +70,8 @@ class SubCategoryByCategoryView(APIView):
             return Response({"error": "SubCategory not found"}, status=404)
 
         subcategory.delete()
-        return Response({"message": "Deleted successfully"}, status=204)
+
+        return Response({
+            "message": "SubCategory deleted successfully",
+            "success": True
+        }, status=200)
