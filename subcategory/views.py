@@ -1,14 +1,26 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
 from .models import SubCategory
 from .serializers import SubCategorySerializer
 from category.models import Category
 
 
+# 🔥 1. ALL SUBCATEGORIES (NO FILTER)
+class AllSubCategoryView(APIView):
+
+    def get(self, request):
+        subcategories = SubCategory.objects.all()
+        serializer = SubCategorySerializer(subcategories, many=True)
+
+        return Response({
+            "count": subcategories.count(),
+            "data": serializer.data
+        })
+
+
+# 🔥 2. CATEGORY WISE + ADD
 class SubCategoryByCategoryView(APIView):
 
-    # ✅ GET (list)
     def get(self, request, category_id):
         category = Category.objects.filter(id=category_id).first()
         if not category:
@@ -24,7 +36,6 @@ class SubCategoryByCategoryView(APIView):
         })
 
 
-    # ✅ POST (add)
     def post(self, request, category_id):
         category = Category.objects.filter(id=category_id).first()
         if not category:
@@ -39,6 +50,9 @@ class SubCategoryByCategoryView(APIView):
 
         return Response(serializer.data, status=201)
 
+
+# 🔥 3. UPDATE + DELETE (single object)
+class SubCategoryDetailView(APIView):
 
     def put(self, request, category_id, subcategory_id):
         subcategory = SubCategory.objects.filter(
@@ -58,7 +72,7 @@ class SubCategoryByCategoryView(APIView):
         serializer.save()
 
         return Response(serializer.data)
-    
+
 
     def delete(self, request, category_id, subcategory_id):
         subcategory = SubCategory.objects.filter(
