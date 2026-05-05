@@ -58,9 +58,7 @@ class SubCategoryByCategoryView(APIView):
         serializer.save()
 
         return Response(serializer.data)
-
-# ✅ DELETE Separate View (clean URL)
-class SubCategoryDeleteView(APIView):
+    
 
     def delete(self, request, category_id, subcategory_id):
         subcategory = SubCategory.objects.filter(
