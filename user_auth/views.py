@@ -18,12 +18,12 @@ def format_phone(phone):
 # 1️⃣ Send OTP to user
 class SendOTPView(APIView):
     def post(self, request):
+        # request.data form-data aur JSON dono se data nikal leta hai
         phone = request.data.get("user_phone")
 
         if not phone:
             return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Normalize phone
         phone = format_phone(phone)
 
         try:
@@ -42,9 +42,9 @@ class SendOTPView(APIView):
 # 2️⃣ Verify OTP
 class VerifyOTPView(APIView):
     def post(self, request):
+        # Serializer dono formats ko handle karta hai
         serializer = OTPVerifySerializer(data=request.data)
         if serializer.is_valid():
-            # Normalize phone here too!
             phone = format_phone(serializer.validated_data['user_phone'])
             otp = serializer.validated_data['otp']
 
@@ -55,7 +55,7 @@ class VerifyOTPView(APIView):
 
             if user.otp == otp:
                 user.is_verified = True
-                user.otp = ""  # clear OTP after verification
+                user.otp = "" 
                 user.save()
 
                 UserProfile.objects.get_or_create(
