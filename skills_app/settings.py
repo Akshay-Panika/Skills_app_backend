@@ -28,11 +28,15 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # ALLOWED_HOSTS = ["*"]
+<<<<<<< HEAD
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     "skill-daan-service.onrender.com",
 ]
+=======
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "skills-app-service.onrender.com"]
+>>>>>>> c0488083c49aae09cdfa0beaa2a10bb7625a5165
 
 
 # Application definition
