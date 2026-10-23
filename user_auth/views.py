@@ -6,6 +6,15 @@ from .serializers import UserAuthSerializer, OTPVerifySerializer
 from .twilio_client import send_otp
 from user_profile.models import UserProfile
 
+def format_phone(phone):
+    """Helper to ensure phone is always +91XXXXXXXXXX"""
+    phone = phone.replace(" ", "").replace("-", "")
+    if phone.startswith("0"):
+        return "+91" + phone[1:]
+    elif not phone.startswith("+91"):
+        return "+91" + phone
+    return phone
+
 # 1️⃣ Send OTP to user
 class SendOTPView(APIView):
     def post(self, request):
@@ -14,30 +23,29 @@ class SendOTPView(APIView):
         if not phone:
             return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # phone normalize (convert to +91 format)
-        phone = phone.replace(" ", "")
-        if phone.startswith("0"):
-            phone = "+91" + phone[1:]
-        elif not phone.startswith("+91"):
-            phone = "+91" + phone
+        # Normalize phone
+        phone = format_phone(phone)
 
         try:
             user = UserAuth.objects.get(user_phone=phone)
         except UserAuth.DoesNotExist:
             user = UserAuth.objects.create(user_phone=phone)
 
-        otp = send_otp(phone)
-        user.otp = otp
-        user.save()
-
-        return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
+        try:
+            otp = send_otp(phone)
+            user.otp = otp
+            user.save()
+            return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # 2️⃣ Verify OTP
 class VerifyOTPView(APIView):
     def post(self, request):
         serializer = OTPVerifySerializer(data=request.data)
         if serializer.is_valid():
-            phone = serializer.validated_data['user_phone']
+            # Normalize phone here too!
+            phone = format_phone(serializer.validated_data['user_phone'])
             otp = serializer.validated_data['otp']
 
             try:
@@ -52,9 +60,7 @@ class VerifyOTPView(APIView):
 
                 UserProfile.objects.get_or_create(
                     user=user,
-                    defaults={
-                        "user_phone": user.user_phone
-                    }
+                    defaults={"user_phone": user.user_phone}
                 )
 
                 user_serializer = UserAuthSerializer(user)
@@ -64,7 +70,7 @@ class VerifyOTPView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# 3️⃣ List users (existing)
+# 3️⃣ List users
 class UserAuthListView(APIView):
     def get(self, request):
         users = UserAuth.objects.all().order_by("-id")

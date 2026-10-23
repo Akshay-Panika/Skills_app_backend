@@ -8,8 +8,8 @@ def send_otp(phone_number):
     otp = random.randint(100000, 999999)
 
     client.messages.create(
-        body=f"Your OTP is {otp}",
-        from_=settings.TWILIO_PHONE_NUMBER,
+        body=f"Your Skill Daan OTP is {otp}",
+        from_=settings.TWILIO_PHONE_NUMBER,  
         to=phone_number
     )
 
